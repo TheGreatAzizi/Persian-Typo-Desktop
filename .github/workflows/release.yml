@@ -108,7 +108,7 @@ jobs:
           cp assets/icon.png "AppDir/usr/share/icons/hicolor/128x128/apps/com.thegreatazizi.persiantypofixer.png"
           cp assets/icon.png "AppDir/com.thegreatazizi.persiantypofixer.png"
           cp assets/icon.png "AppDir/.DirIcon"
-          cat > AppDir/usr/share/applications/com.thegreatazizi.persiantypofixer.desktop <<'EOF'
+          cat > AppDir/com.thegreatazizi.persiantypofixer.desktop <<'EOF'
           [Desktop Entry]
           Name=Persian Typo Fixer
           Comment=اصلاح خودکار متن فارسی در همه برنامه‌ها
@@ -118,6 +118,7 @@ jobs:
           Type=Application
           Categories=Office;Utility;
           EOF
+          cp AppDir/com.thegreatazizi.persiantypofixer.desktop AppDir/usr/share/applications/com.thegreatazizi.persiantypofixer.desktop
           cat > AppDir/AppRun <<'EOF'
           #!/usr/bin/env bash
           set -euo pipefail

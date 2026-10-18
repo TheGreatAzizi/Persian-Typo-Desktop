@@ -63,6 +63,7 @@ Type=Application
 Categories=Office;Utility;
 StartupNotify=true
 EOF
+cp "$DESKTOP/$APP_ID.desktop" "$APP_DIR/$APP_ID.desktop"
 
 # ۵) فایل AppRun برای اجرای AppImage
 cat > "$APP_DIR/AppRun" <<'EOF'
