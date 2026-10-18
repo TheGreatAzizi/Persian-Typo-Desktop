@@ -16,7 +16,7 @@ DESKTOP="$SHARE/applications"
 rm -rf "$APP_DIR" dist
 mkdir -p "$BIN" "$LIB" "$ICON" "$DESKTOP"
 
-# ۱) نصب وابستگی‌ها در یک env مجازی (اگر venv نیست)
+# ۱) نصب وابستگی‌ها در یک محیط مجازی
 if [ ! -d ".venv" ]; then
   python3 -m venv .venv
 fi
@@ -25,7 +25,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 pip install pyinstaller
 
-# ۲) ساخت exe-wrapper لینوکس با PyInstaller (onefile، بدون کنسول)
+# ۲) ساخت باینری لینوکس با PyInstaller (onefile، بدون کنسول)
 pyinstaller --noconfirm --clean --onefile --windowed \
   --name "$APP_NAME" \
   --icon assets/icon.png \
@@ -46,23 +46,25 @@ pyinstaller --noconfirm --clean --onefile --windowed \
 cp "dist/$APP_NAME" "$BIN/$APP_NAME"
 chmod +x "$BIN/$APP_NAME"
 
-# ۴) آیکون و دسکتاپ
+# ۴) آیکون‌ها و فایل دسکتاپ
 cp assets/icon.png "$ICON/$APP_ID.png"
+cp assets/icon.png "$APP_DIR/$APP_ID.png"
+cp assets/icon.png "$APP_DIR/.DirIcon"
 
 cat > "$DESKTOP/$APP_ID.desktop" <<EOF
 [Desktop Entry]
 Name=$APP_NAME
 GenericName=Persian Typo Fixer
 Comment=اصلاح خودکار متن فارسی در همه برنامه‌ها
-Exec=$BIN/$APP_NAME %F
+Exec=AppRun %F
 Icon=$APP_ID
 Terminal=false
 Type=Application
-Categories=Office;TextEditor;Utility;
+Categories=Office;Utility;
 StartupNotify=true
 EOF
 
-# ۵) فایل पRun helper برای AppImage
+# ۵) فایل AppRun برای اجرای AppImage
 cat > "$APP_DIR/AppRun" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -76,12 +78,24 @@ exec "$HERE/usr/bin/Persian Typo Fixer" "$@"
 EOF
 chmod +x "$APP_DIR/AppRun"
 
-# ۶) ساخت AppImage با appimagetool (اگر نصب نیست دانلود شود)
-if ! command -v appimagetool &> /dev/null; then
-  echo "appimagetool یافت نشد. لطفاً از https://github.com/AppImage/AppImageKit نصب کنید."
-  echo "ساخت AppDir تمام شد در: $APP_DIR"
-  exit 0
+# ۶) آماده‌سازی appimagetool
+if command -v appimagetool &> /dev/null; then
+  APPIMAGETOOL="appimagetool"
+elif [ -x "./appimagetool" ]; then
+  APPIMAGETOOL="./appimagetool"
+else
+  echo "appimagetool یافت نشد؛ در حال دانلود…"
+  if ! wget -q -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"; then
+    wget -q -O appimagetool "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+  fi
+  chmod +x appimagetool
+  APPIMAGETOOL="./appimagetool"
 fi
 
-ARCH=x86_64 appimagetool "$APP_DIR" "dist/${APP_NAME}-${VERSION}-x86_64.AppImage"
-echo "AppImage ساخته شد: dist/${APP_NAME}-${VERSION}-x86_64.AppImage"
+OUT="dist/${APP_NAME}-${VERSION}-x86_64.AppImage"
+mkdir -p dist
+if ! ARCH=x86_64 "$APPIMAGETOOL" "$APP_DIR" "$OUT"; then
+  echo "اجرای عادی ناموفق بود؛ تلاش دوباره بدون FUSE…"
+  ARCH=x86_64 "$APPIMAGETOOL" --appimage-extract-and-run "$APP_DIR" "$OUT"
+fi
+echo "AppImage ساخته شد: $OUT"

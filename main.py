@@ -1,22 +1,21 @@
 # Persian Typo Fixer Desktop | main.py
-# نقطه ورود برنامه: تای سیستمی + هاتک سراسری + پنجره تنظیمات
+# نقطه ورود برنامه: تای سیستمی + میانبر سراسری + پنجره تنظیمات
 
 import json
 import os
 import sys
-import platform
 
-from PyQt6.QtWidgets import (
-    QApplication, QSystemTrayIcon, QMenu, QMessageBox
-)
+from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon
-from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
-from core.hotkey import HotkeyManager
 from core.clipboard import fix_selection
+from core.fixer import PTF_DEFAULTS
+from core.hotkey import HotkeyManager
 from ui.settings import SettingsDialog
 
 CONFIG_NAME = "config.json"
+DEFAULT_HOTKEY = "<ctrl>+<shift>+f"
 
 
 def config_path():
@@ -28,24 +27,18 @@ def config_path():
 
 
 def load_config():
+    cfg = {"enabled": True, "hotkey": DEFAULT_HOTKEY}
+    cfg.update(PTF_DEFAULTS)
     path = config_path()
-    defaults = {
-        "enabled": True,
-        "hotkey": "<ctrl>+<shift>+f",
-        "startMinimized": True,
-        "runAtStartup": False,
-    }
-    # imported defaults merged
-    from core.fixer import PTF_DEFAULTS
-    defaults.update(PTF_DEFAULTS)
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
-                user = json.load(f)
-            defaults.update(user)
-        except Exception:
-            pass
-    return defaults
+                saved = json.load(f)
+            if isinstance(saved, dict):
+                cfg.update(saved)
+        except Exception as e:
+            print("[Config] load failed:", e)
+    return cfg
 
 
 def save_config(cfg):
@@ -54,30 +47,34 @@ def save_config(cfg):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"[Config] save failed: {e}")
+        print("[Config] save failed:", e)
 
 
-class App:
+class App(QObject):
+    fix_finished = pyqtSignal(str)
+
     def __init__(self):
+        super().__init__()
         self.cfg = load_config()
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)
 
-        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "icon.png")
+        base = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base, "assets", "icon.png")
         self.icon = QIcon(icon_path) if os.path.exists(icon_path) else QIcon()
 
         self.tray = QSystemTrayIcon(self.icon, self.app)
-        self.tray.setToolTip("غلط‌گیر فارسی")
+        self.tray.setToolTip("غلط‌گیر فارسی — برای اصلاح متن انتخاب‌شده میانبر را بزنید")
 
         menu = QMenu()
-        self.act_enable = QAction("فعال/غیرفعال", self.app)
+        self.act_enable = QAction("فعال", self.app)
         self.act_enable.setCheckable(True)
-        self.act_enable.setChecked(self.cfg.get("enabled", True))
+        self.act_enable.setChecked(bool(self.cfg.get("enabled", True)))
         self.act_enable.triggered.connect(self._toggle_enable)
         menu.addAction(self.act_enable)
 
         menu.addSeparator()
-        act_settings = QAction("تنظیمات", self.app)
+        act_settings = QAction("تنظیمات…", self.app)
         act_settings.triggered.connect(self._open_settings)
         menu.addAction(act_settings)
 
@@ -94,57 +91,69 @@ class App:
         self.tray.activated.connect(self._tray_activated)
         self.tray.show()
 
+        self.hotkey = None
+        self.fix_finished.connect(self._on_fix_finished)
+        self._start_hotkey()
+
+    def _start_hotkey(self):
         self.hotkey = HotkeyManager(
-            hotkey_str=self.cfg.get("hotkey", "<ctrl>+<shift>+f"),
-            on_fix=self._on_fix,
+            hotkey_str=self.cfg.get("hotkey", DEFAULT_HOTKEY),
+            on_fix=self._hotkey_pressed,
         )
         self.hotkey.start()
 
-    def _tray_activated(self, reason):
-        from PyQt6.QtWidgets import QSystemTrayIcon
-        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
-            self._open_settings()
-
-    def _toggle_enable(self, checked):
-        self.cfg["enabled"] = checked
-        save_config(self.cfg)
-
-    def _on_fix(self, fixed_text):
+    def _hotkey_pressed(self):
         if not self.cfg.get("enabled", True):
             return
+        fixed = fix_selection(self.cfg)
+        self.fix_finished.emit(fixed)
+
+    def _on_fix_finished(self, fixed_text):
+        if not fixed_text:
+            return
+        preview = fixed_text if len(fixed_text) <= 60 else fixed_text[:60] + "…"
         self.tray.showMessage(
             "غلط‌گیر فارسی",
-            f"متن اصلاح شد: {fixed_text[:60]}..." if len(fixed_text) > 60 else f"متن اصلاح شد: {fixed_text}",
+            "متن اصلاح شد:\n" + preview,
             QSystemTrayIcon.MessageIcon.Information,
             3000,
         )
 
+    def _tray_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self._open_settings()
+
+    def _toggle_enable(self, checked):
+        self.cfg["enabled"] = bool(checked)
+        save_config(self.cfg)
+
     def _open_settings(self):
-        dlg = SettingsDialog(self.cfg, None)
+        dlg = SettingsDialog(self.cfg)
         if dlg.exec():
             save_config(self.cfg)
-            # restart hotkey with new combo
-            self.hotkey.stop()
-            self.hotkey = HotkeyManager(
-                hotkey_str=self.cfg.get("hotkey", "<ctrl>+<shift>+f"),
-                on_fix=self._on_fix,
-            )
-            self.hotkey.start()
+            if self.hotkey is not None:
+                self.hotkey.stop()
+            self._start_hotkey()
 
     def _about(self):
         QMessageBox.information(
-            None, "درباره غلط‌گیر فارسی",
-            "نسخه دسکتاپ پلاگین Persian Typo Fixer\nتوسط TheAzizi\nاصلاح متن فارسی در همه برنامه‌های ویندوز و لینوکس",
+            None,
+            "درباره غلط‌گیر فارسی",
+            "نسخه دسکتاپ Persian Typo Fixer\n\n"
+            "متن فارسی را در هر برنامه‌ای انتخاب کنید و میانبر سراسری را بزنید.\n"
+            "پیش‌فرض: Ctrl+Shift+F\n\n"
+            "توسط TheAzizi — بدون ارسال هیچ داده‌ای به اینترنت.",
         )
 
     def _exit(self):
-        self.hotkey.stop()
+        if self.hotkey is not None:
+            self.hotkey.stop()
         self.tray.hide()
         self.app.quit()
 
     def run(self):
-        sys.exit(self.app.exec())
+        return self.app.exec()
 
 
 if __name__ == "__main__":
-    App().run()
+    sys.exit(App().run())

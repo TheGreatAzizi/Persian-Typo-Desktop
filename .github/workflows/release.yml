@@ -44,7 +44,7 @@ jobs:
             main.py
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -96,20 +96,23 @@ jobs:
 
       - name: Download appimagetool
         run: |
-          wget "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool \
+            || wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
           chmod +x appimagetool
 
       - name: Build AppDir
         run: |
-          rm -rf AppDir dist
+          rm -rf AppDir
           mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/icons/hicolor/128x128/apps AppDir/usr/share/applications
           cp "dist/Persian Typo Fixer" "AppDir/usr/bin/Persian Typo Fixer"
           cp assets/icon.png "AppDir/usr/share/icons/hicolor/128x128/apps/com.thegreatazizi.persiantypofixer.png"
+          cp assets/icon.png "AppDir/com.thegreatazizi.persiantypofixer.png"
+          cp assets/icon.png "AppDir/.DirIcon"
           cat > AppDir/usr/share/applications/com.thegreatazizi.persiantypofixer.desktop <<'EOF'
           [Desktop Entry]
           Name=Persian Typo Fixer
           Comment=اصلاح خودکار متن فارسی در همه برنامه‌ها
-          Exec=AppRun
+          Exec=AppRun %F
           Icon=com.thegreatazizi.persiantypofixer
           Terminal=false
           Type=Application
@@ -130,10 +133,11 @@ jobs:
 
       - name: Build AppImage
         run: |
-          ARCH=x86_64 ./appimagetool AppDir "Persian Typo Fixer-${GITHUB_REF_NAME#v}-x86_64.AppImage"
+          ARCH=x86_64 ./appimagetool AppDir "Persian Typo Fixer-${GITHUB_REF_NAME#v}-x86_64.AppImage" \
+            || ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir "Persian Typo Fixer-${GITHUB_REF_NAME#v}-x86_64.AppImage"
 
       - name: Upload AppImage to Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

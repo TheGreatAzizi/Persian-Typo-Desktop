@@ -177,12 +177,12 @@ PTF_COMPOUNDS = [
     ["غیر منتظره", "غیرمنتظره"],
     ["پیش غذا", "پیش‌غذا"],
     ["پیش درآمد", "پیش‌درآمد"],
-    ["پس לרزه", "پس‌لرزه"],
+    ["پس لرزه", "پس‌لرزه"],
     ["پس مانده", "پس‌مانده"],
     ["میان وعده", "میان‌وعده"],
     ["میان سال", "میانسال"],
     ["بین المللی", "بین‌المللی"],
-    ["بین الملل", "بین‌المل"],
+    ["بین الملل", "بین‌الملل"],
     ["چاره ساز", "چاره‌ساز"],
     ["مشکل گشا", "مشکل‌گشا"],
     ["گره گشا", "گره‌گشا"],
@@ -258,7 +258,7 @@ PTF_COMPOUNDS = [
     ["بی نوا", "بینوا"],
     ["بی کلاس", "بی‌کلاس"],
     ["به روز", "به‌روز"],
-    ["به لحظه", "به‌لحظه"],
+    ["به هنگام", "بهنگام"],
     ["به موقع", "بموقع"],
     ["به تدریج", "بتدریج"],
     ["به مرور", "بمرور"],
@@ -269,7 +269,7 @@ PTF_COMPOUNDS = [
     ["به راحتی", "به‌راحتی"],
     ["به آرامی", "به‌آرامی"],
     ["به سرعت", "به‌سرعت"],
-    ["به کندی", "به‌کنند"],
+    ["به کندی", "به‌کندی"],
     ["نا گهان", "ناگهان"],
     ["هر کس", "هرکس"],
     ["هر چیز", "هرچیز"],
@@ -287,12 +287,12 @@ PTF_COMPOUNDS = [
     ["هیچ کدام", "هیچ‌کدام"],
     ["هیچ وقت", "هیچ‌وقت"],
     ["همین جا", "همین‌جا"],
-    ["همین طور", "همین‌tor"],
+    ["همین طور", "همین‌طور"],
     ["همین وقت", "همین‌وقت"],
     ["همین الان", "همین‌الان"],
     ["همین امروز", "همین‌امروز"],
     ["همان جا", "همان‌جا"],
-    ["همان طور", "همان‌tor"],
+    ["همان طور", "همان‌طور"],
     ["همان وقت", "همان‌وقت"],
     ["آن جا", "آنجا"],
     ["این جا", "اینجا"],
@@ -437,8 +437,8 @@ PTF_SUB_FIXES = [
 ]
 
 PTF_ATTACHED_FIXES = [
-    ["همینطور", "همین‌tor"],
-    ["همونطور", "همون‌tor"],
+    ["همینطور", "همین‌طور"],
+    ["همونطور", "همون‌طور"],
     ["درمورد", "در مورد"],
     ["بخاطر", "به‌خاطر"],
 ]
@@ -525,15 +525,15 @@ def ptfFixAttachedMi(t):
     out = t
     out = re.sub(FA_PRE + r"می([" + FA_L + r"]{2,})" + FA_END_STRICT,
                  lambda m: m.group(1) + "می\u200C" + m.group(2)
-                 if not ptfHitsSet("می" + m.group(2), MI_ATTACHED_EXCEPTIONS) else m.group(0), out)
+                 if ("می" + m.group(2)) not in MI_ATTACHED_EXCEPTIONS else m.group(0), out)
     out = re.sub(FA_PRE + r"نمی([" + FA_L + r"]{2,})" + FA_END_STRICT,
                  lambda m: m.group(1) + "نمی\u200C" + m.group(2)
-                 if not ptfHitsSet("نمی" + m.group(2), NEMI_ATTACHED_EXCEPTIONS) else m.group(0), out)
+                 if ("نمی" + m.group(2)) not in NEMI_ATTACHED_EXCEPTIONS else m.group(0), out)
     return out
 
 
 def ptfFixAttachedHa(t):
-    AFTER = r"([\s.,،:؛!؟?;…\)\]\[\"'«»\u200C]|$)"
+    AFTER = r"([\s.,،:؛!؟?;…\)\]\[\"'»\u200C]|$)"
     re1 = re.compile(r"([" + FA_L + r"]{1,30}?)ها" + AFTER)
     re2 = re.compile(r"([" + FA_L + r"]{2,30}?)های" + AFTER)
     re3 = re.compile(r"([" + FA_L + r"]{2,30}?)هایی" + AFTER)
@@ -575,7 +575,7 @@ def ptfFixAttachedHa(t):
 
 def ptfFixCompounds(t):
     out = t
-    FA_AFTER = r"(?=[\s\u200C.,،:؛!؟?;…\)\]\[\"'«»]|$)"
+    FA_AFTER = r"(?=[\s\u200C.,،:؛!؟?;…\)\]\[\"'»]|$)"
     for wrong, correct in PTF_COMPOUNDS:
         pattern = re.compile(FA_PRE + _escape(wrong) + FA_AFTER)
         out = pattern.sub(lambda m: m.group(1) + correct, out)
@@ -584,7 +584,7 @@ def ptfFixCompounds(t):
 
 def ptfFixCommonTypos(t):
     out = t
-    FA_AFTER = r"(?=[\s\u200C.,،:؛!؟?;…\)\]\[\"'«»]|$)"
+    FA_AFTER = r"(?=[\s\u200C.,،:؛!؟?;…\)\]\[\"'»]|$)"
     for wrong, correct in PTF_COMMON_TYPOS:
         pattern = re.compile(FA_PRE + _escape(wrong) + FA_AFTER)
         out = pattern.sub(lambda m: m.group(1) + correct, out)
@@ -622,9 +622,9 @@ def ptfFixCustomWords(t, customs):
         if not frm or frm == to:
             continue
         try:
-            FA_AFTER = r"(?=[\s\u200C.,،:؛!؟?;…\)\]\[\"'«»]|$)"
+            FA_AFTER = r"(?=[\s\u200C.,،:؛!؟?;…\)\]\[\"'»]|$)"
             pattern = re.compile(FA_PRE + _escape(frm) + FA_AFTER)
-            out = pattern.sub(lambda m: m.group(1) + to.replace("$", "$$$$"), out)
+            out = pattern.sub(lambda m: m.group(1) + to, out)
         except Exception:
             pass
     return out
@@ -632,7 +632,7 @@ def ptfFixCustomWords(t, customs):
 
 def ptfFixAttachedWords(t):
     out = t
-    FA_AFTER = r"(?=[\s\u200C.,،:؛!؟?;…\)\]\[\"'«»]|$)"
+    FA_AFTER = r"(?=[\s\u200C.,،:؛!؟?;…\)\]\[\"'»]|$)"
     for wrong, correct in PTF_ATTACHED_FIXES:
         pattern = re.compile(FA_PRE + _escape(wrong) + FA_AFTER)
         out = pattern.sub(lambda m: m.group(1) + correct, out)
@@ -661,13 +661,19 @@ def ptfFixPersianPunct(t):
     L = r"[" + FA_L + r"\u200C]"
     out = re.sub(r"(" + L + r")\s+([,;?])", r"\1\2", out)
     DIG = r"[0-9\u06F0-\u06F9\u0660-\u0669]"
-    out = re.sub(r"(?<=" + L + r"|،),+|,+(?=" + L + r"|،)",
-                 lambda m: "،" * len(m.group(0)) if not (len(m.string) > m.start() and m.string[m.start() - 1:m.start()] and
-                                                         re.match(DIG, m.string[m.start() - 1]) and
-                                                         re.match(DIG, m.string[m.start() + len(m.group(0)):m.start() + len(m.group(0)) + 1]))
-                 else m.group(0), out)
+
+    def comma_repl(m):
+        s = m.group(0)
+        if s == ",":
+            before = m.string[m.start() - 1] if m.start() > 0 else ""
+            after = m.string[m.start() + 1] if m.start() + 1 < len(m.string) else ""
+            if re.match(DIG, before or "") and re.match(DIG, after or ""):
+                return s
+        return "،" * len(s)
+
+    out = re.sub(r"(?<=" + L + r"|،),+|,+(?=" + L + r"|،)", comma_repl, out)
     out = re.sub(r"(?<=" + L + r"|؛);+|;+(?=" + L + r"|؛)", lambda m: "؛" * len(m.group(0)), out)
-    out = re.sub(r"(?<=" + L + r"؟)\?+|\?+(?=" + L + r"؟)", lambda m: "؟" * len(m.group(0)), out)
+    out = re.sub(r"(?<=" + L + r"|؟)\?+|\?+(?=" + L + r"|؟)", lambda m: "؟" * len(m.group(0)), out)
     out = re.sub(r"(?<=[\u0600-\u06FF\u200C0-9۰-۹])%|%(?=[\u0600-\u06FF\u200C])", "٪", out)
     return out
 
@@ -680,12 +686,12 @@ def ptfFixDoubleSpace(t):
 
 def ptfFixLatinDigits(t):
     fa = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"]
-    return re.sub(r"\d", lambda d: fa[int(d.group(0))], t)
+    return re.sub(r"[0-9]", lambda d: fa[int(d.group(0))], t)
 
 
 def ptfFixSeparators(t):
     out = re.sub(r"([۰-۹]),([۰-۹])", r"\1٬\2", t)
-    out = re.sub(r"([۰-۹])[.\/]([۰-۹])", r"\1٫\2", t)
+    out = re.sub(r"([۰-۹])[.\/]([۰-۹])", r"\1٫\2", out)
     return out
 
 
@@ -754,7 +760,7 @@ def ptfFixWords(t, opts):
 
 
 def ptfSplitStable(before):
-    m = re.match(r"^([\s\S]*[\s.,،:؛!؟?;…)\]\"'«»\n])([^\]]*)$", before)
+    m = re.match(r"^([\s\S]*[\s.,،:؛!؟?;…)\]\"'»\n])([\s\S]*)$", before)
     if m and re.match(r"^[" + FA_L + r"\u200C]*$", m.group(2)):
         return {"closed": m.group(1), "open": m.group(2)}
     if re.match(r"^[" + FA_L + r"\u200C]*$", before):
@@ -794,8 +800,8 @@ def ptfFixText(text, opts=None):
     opts = opts or PTF_DEFAULTS
 
     placeholders = []
-    bare_domain = r'(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}(?::\d{1,5})?(?:/[^\s<>"]*)?'
-    url_re = re.compile(r'https?://[^\s<>"]+|www\.[^\s<>"]+|[\w.+-]+@[\w-]+\.[\w.]+|' + bare_domain)
+    bare_domain = r'(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}(?::[0-9]{1,5})?(?:/[^\s<>"\']*)?'
+    url_re = re.compile(r'https?://[^\s<>"\']+|www\.[^\s<>"\']+|[A-Za-z0-9_.+-]+@[A-Za-z0-9_-]+\.[A-Za-z0-9_.]+|' + bare_domain)
 
     def url_repl(m):
         placeholders.append(m.group(0))

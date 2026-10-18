@@ -1,8 +1,7 @@
 # Persian Typo Fixer Desktop | core/hotkey.py
-# گوش देनेِ زière سراسری و فعال‌سازی اصلاح
+# مدیریت میانبر سراسری و فراخوانی اصلاح
 
 from pynput import keyboard
-from core.clipboard import fix_selection
 
 
 class HotkeyManager:
@@ -18,15 +17,14 @@ class HotkeyManager:
         self._running = True
 
         def on_activate():
-            fixed = fix_selection()
             if self.on_fix:
-                self.on_fix(fixed)
+                self.on_fix()
 
         try:
             self._listener = keyboard.GlobalHotKeys({self.hotkey_str: on_activate})
             self._listener.start()
         except Exception as e:
-            print(f"[Hotkey] Failed to start: {e}")
+            print("[Hotkey] failed to start (%s): %s" % (self.hotkey_str, e))
             self._running = False
 
     def stop(self):

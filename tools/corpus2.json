@@ -1,0 +1,37 @@
+{
+  "texts": [
+    "سلااااام",
+    "خوبییییی؟",
+    "aaa چیه",
+    "\"سلام\" و \"خوبی\" گفت",
+    "میگه \"کتاب\" خوبه",
+    "عدد 123 و 456",
+    "قیمت 1,234,567 ریال",
+    "مبلغ ۱۲۳,۴۵۶ تومان",
+    "نسبت ۱.۵ برابر",
+    "نسخه 3.14 پای",
+    "می خواهم 123 کتاب بخرم",
+    "كتابها و چیزهاي ديگر",
+    "مي خواهم بدانم",
+    "خانه اي قديمي",
+    "مادرم بزرگ است و پدرم بزرگ",
+    "روزنامه نگاران آمدند",
+    "خوش آمديد به سايت ما",
+    "فوق العاده بود، حیرت انگیز!",
+    "من درمورد برنامه هاي ديگر"
+  ],
+  "options": [
+    { "fixLatinDigits": true },
+    { "fixSeparators": true },
+    { "fixRepeat": true },
+    { "fixQuotes": true },
+    { "fixLatinDigits": true, "fixSeparators": true, "fixRepeat": true, "fixQuotes": true },
+    { "customWords": [ { "from": "آبی", "to": "ابی", "on": true } ] },
+    { "customWords": [ { "from": "گوجه", "to": "گوجه فرنگی", "on": true }, { "from": "kh", "to": "خ", "on": true } ] },
+    { "customWords": [ { "from": "دلار", "to": "$دلار$", "on": true } ] },
+    { "customWords": [ { "from": "خانه", "to": "خونه", "on": true }, { "from": "خونه", "to": "خانه", "on": true } ] },
+    { "fixZWNJ": false, "fixCompounds": false },
+    { "fixCommonTypos": false, "fixPersianPunct": false },
+    { "fixKashida": false, "fixTashkeel": false, "fixAttachedHa": false }
+  ]
+}
