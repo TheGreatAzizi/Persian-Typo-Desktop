@@ -49,6 +49,7 @@ class SettingsDialog(QDialog):
         lay = QVBoxLayout()
         self.general_cbs = []
         for key, label in [
+            ("autoFix", "اصلاح خودکار هنگام تایپ (بدون نیاز به میانبر)"),
             ("fixArabicYK", "اصلاح حروف عربی «ي/ى/ك» به «ی/ک»"),
             ("fixArabicAlef", "اصلاح الف و حروف عربی (أ/إ -> ا ، ة -> ه)"),
             ("fixArabicDigits", "تبدیل ارقام عربی به فارسی (٠ -> ۰)"),

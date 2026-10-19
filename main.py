@@ -10,6 +10,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
+from core.autofix import AutoFixer
 from core.clipboard import fix_selection
 from core.fixer import PTF_DEFAULTS
 from core.hotkey import HotkeyManager
@@ -74,6 +75,12 @@ class App(QObject):
         self.act_enable.triggered.connect(self._toggle_enable)
         menu.addAction(self.act_enable)
 
+        self.act_auto = QAction("اصلاح خودکار هنگام تایپ", self.app)
+        self.act_auto.setCheckable(True)
+        self.act_auto.setChecked(bool(self.cfg.get("autoFix", True)))
+        self.act_auto.triggered.connect(self._toggle_auto)
+        menu.addAction(self.act_auto)
+
         menu.addSeparator()
         act_settings = QAction("تنظیمات…", self.app)
         act_settings.triggered.connect(self._open_settings)
@@ -93,6 +100,8 @@ class App(QObject):
         self.tray.show()
 
         self.hotkey = None
+        self.autofix = AutoFixer(self.cfg)
+        self.autofix.start()
         self.fix_finished.connect(self._on_fix_finished)
         self._start_hotkey()
 
@@ -147,10 +156,16 @@ class App(QObject):
         self.cfg["enabled"] = bool(checked)
         save_config(self.cfg)
 
+    def _toggle_auto(self, checked):
+        self.cfg["autoFix"] = bool(checked)
+        save_config(self.cfg)
+
     def _open_settings(self):
         dlg = SettingsDialog(self.cfg)
         if dlg.exec():
             save_config(self.cfg)
+            self.act_enable.setChecked(bool(self.cfg.get("enabled", True)))
+            self.act_auto.setChecked(bool(self.cfg.get("autoFix", True)))
             if self.hotkey is not None:
                 self.hotkey.stop()
             self._start_hotkey()
@@ -168,6 +183,8 @@ class App(QObject):
     def _exit(self):
         if self.hotkey is not None:
             self.hotkey.stop()
+        if self.autofix is not None:
+            self.autofix.stop()
         self.tray.hide()
         self.app.quit()
 

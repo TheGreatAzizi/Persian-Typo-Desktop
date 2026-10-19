@@ -5,6 +5,7 @@ import re
 
 PTF_DEFAULTS = {
     "enabled": True,
+    "autoFix": True,
     "fixArabicYK": True,
     "fixArabicAlef": True,
     "fixTashkeel": True,
