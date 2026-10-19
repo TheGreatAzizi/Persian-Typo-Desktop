@@ -28,6 +28,12 @@ def set_clipboard(text: str) -> None:
         pass
 
 
+def press_backspace(count: int) -> None:
+    for _ in range(count):
+        pyautogui.press("backspace")
+        time.sleep(0.005)
+
+
 def _copy_key() -> None:
     if SYSTEM == "Darwin":
         pyautogui.hotkey("cmd", "c")

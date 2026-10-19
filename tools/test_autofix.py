@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import time
 import types
 from types import SimpleNamespace
 
@@ -28,10 +29,28 @@ class FakeListener:
         pass
 
 
+class FakeController:
+    instances = []
+
+    def __init__(self):
+        self.presses = []
+        self.typed = []
+        FakeController.instances.append(self)
+
+    def press(self, key):
+        self.presses.append(('press', key))
+
+    def release(self, key):
+        self.presses.append(('release', key))
+
+    def type(self, text):
+        self.typed.append(text)
+
+
 fake_kb = types.ModuleType('pynput.keyboard')
 fake_kb.Key = Key
 fake_kb.Listener = FakeListener
-fake_kb.Controller = types.SimpleNamespace
+fake_kb.Controller = FakeController
 
 fake_mouse = types.ModuleType('pynput.mouse')
 fake_mouse.Listener = FakeListener
@@ -43,8 +62,17 @@ sys.modules['pynput'] = fake_pynput
 sys.modules['pynput.keyboard'] = fake_kb
 sys.modules['pynput.mouse'] = fake_mouse
 
+clip_events = []
+fake_clip = types.ModuleType('core.clipboard')
+fake_clip.get_clipboard = lambda: 'BACKUP'
+fake_clip.set_clipboard = lambda text: clip_events.append(('set', text))
+fake_clip.press_backspace = lambda count: clip_events.append(('backspace', count))
+fake_clip._paste_key = lambda: clip_events.append(('paste', None))
+sys.modules['core.clipboard'] = fake_clip
+
 from core.autofix import AutoFixer
 from core.fixer import PTF_DEFAULTS, ptfFixText
+from core.keyevent import KeyEvent
 
 fails = []
 
@@ -69,15 +97,15 @@ def run(typed, opts=None):
     tokens = re.findall(r'<BS>|<LEFT>|<CLICK>|\n|.', typed)
     for ch in tokens:
         if ch == '<BS>':
-            fx._on_press(Key.backspace)
+            fx._on_press(KeyEvent(name='backspace'))
         elif ch == '<LEFT>':
-            fx._on_press(Key.left)
+            fx._on_press(KeyEvent(name='left'))
         elif ch == '<CLICK>':
             fx._reset()
         elif ch == '\n':
-            fx._on_press(Key.enter)
+            fx._on_press(KeyEvent(name='enter'))
         else:
-            fx._on_press(SimpleNamespace(char=ch))
+            fx._on_press(KeyEvent(char=ch))
         fx._cancel()
     fx._maybe_fix(fx._generation)
     return calls, fx
@@ -126,14 +154,24 @@ fx = AutoFixer(dict(PTF_DEFAULTS, autoFix=True, enabled=True))
 injection = []
 fx._replace = lambda t, f: injection.append((t, f))
 for ch in 'کتاب خانه ':
-    fx._on_press(SimpleNamespace(char=ch))
+    fx._on_press(KeyEvent(char=ch))
 fx._cancel()
 gen = fx._generation
 fx._maybe_fix(gen)
 check('buffer updated after replace', fx._buffer == 'کتابخانه ', repr(fx._buffer))
 
-fx._on_press(SimpleNamespace(char='خ'))
+fx._on_press(KeyEvent(char='خ'))
 check('new char appends to fixed buffer', fx._buffer == 'کتابخانه خ'[-120:], repr(fx._buffer))
+
+FakeController.instances.clear()
+clip_events.clear()
+fx = AutoFixer(dict(PTF_DEFAULTS, autoFix=True, enabled=True))
+fx._replace('abc ', 'abd ')
+check('replace: one backspace per char', ('backspace', 4) in clip_events, clip_events)
+check('replace: fixed text set on clipboard', ('set', 'abd ') in clip_events, clip_events)
+check('replace: paste shortcut sent', ('paste', None) in clip_events, clip_events)
+time.sleep(0.7)
+check('replace: clipboard restored', ('set', 'BACKUP') in clip_events, clip_events)
 
 print()
 print('RESULT:', 'ALL PASS' if not fails else 'FAILURES: %d' % len(fails))

@@ -1,16 +1,74 @@
 # Persian Typo Fixer Desktop | core/autofix.py
 # اصلاح خودکار متن هنگام تایپ (بدون نیاز به میانبر)
 
+import platform
 import re
 import threading
+import time
 
 from pynput import keyboard, mouse
+
+from core.keyevent import KeyEvent
 
 MAX_BUFFER = 120
 DEBOUNCE = 0.45
 BOUNDARY_RE = re.compile(r"[\s.,!?؟؛;:،…»)\]}\-–—]$")
-LETTER_RE = re.compile(r"[A-Za-z0-9\u0600-\u06FF\u200C]")
 TAIL_RE = re.compile(r"(?:[^\s]+\s+)?[^\s]+(?:\s+)?$")
+
+_MODIFIERS = {
+    keyboard.Key.ctrl: "ctrl",
+    keyboard.Key.ctrl_l: "ctrl",
+    keyboard.Key.ctrl_r: "ctrl",
+    keyboard.Key.alt: "alt",
+    keyboard.Key.alt_l: "alt",
+    keyboard.Key.alt_r: "alt",
+    keyboard.Key.alt_gr: "alt",
+    keyboard.Key.cmd: "cmd",
+    keyboard.Key.cmd_l: "cmd",
+    keyboard.Key.cmd_r: "cmd",
+    keyboard.Key.shift: "shift",
+    keyboard.Key.shift_l: "shift",
+    keyboard.Key.shift_r: "shift",
+}
+
+_SPECIAL = {
+    keyboard.Key.backspace: "backspace",
+    keyboard.Key.left: "left",
+    keyboard.Key.right: "right",
+    keyboard.Key.up: "up",
+    keyboard.Key.down: "down",
+    keyboard.Key.home: "home",
+    keyboard.Key.end: "end",
+    keyboard.Key.page_up: "page_up",
+    keyboard.Key.page_down: "page_down",
+    keyboard.Key.delete: "delete",
+    keyboard.Key.esc: "esc",
+    keyboard.Key.tab: "tab",
+    keyboard.Key.enter: "enter",
+}
+
+_RESET_KEYS = {"left", "right", "up", "down", "home", "end", "page_up", "page_down", "delete", "esc", "tab", "enter"}
+
+
+def _from_pynput(key):
+    name = _MODIFIERS.get(key) or _SPECIAL.get(key)
+    if name is not None:
+        return KeyEvent(name=name)
+    return KeyEvent(char=getattr(key, "char", None))
+
+
+class _PynputKeyboardHook:
+    def __init__(self, on_press, on_release, should_ignore):
+        self._listener = keyboard.Listener(
+            on_press=lambda key: on_press(_from_pynput(key)),
+            on_release=lambda key: on_release(_from_pynput(key)),
+        )
+
+    def start(self):
+        self._listener.start()
+
+    def stop(self):
+        self._listener.stop()
 
 
 class AutoFixer:
@@ -30,10 +88,20 @@ class AutoFixer:
     def start(self):
         if self._kb_listener is not None:
             return
-        self._kb_listener = keyboard.Listener(
-            on_press=self._on_press,
-            on_release=self._on_release,
-        )
+        if platform.system() == "Windows":
+            from core.winkb import WindowsKeyboardHook
+
+            self._kb_listener = WindowsKeyboardHook(
+                self._on_press,
+                self._on_release,
+                should_ignore=lambda: self._injecting,
+            )
+        else:
+            self._kb_listener = _PynputKeyboardHook(
+                self._on_press,
+                self._on_release,
+                should_ignore=lambda: self._injecting,
+            )
         self._kb_listener.start()
         self._mouse_listener = mouse.Listener(on_click=lambda *a: self._reset())
         self._mouse_listener.start()
@@ -49,50 +117,44 @@ class AutoFixer:
         self._mouse_listener = None
         self._reset()
 
-    def _on_release(self, key):
-        if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
+    def _on_release(self, ev):
+        if ev.name == "ctrl":
             self._ctrl = False
-        elif key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt_gr):
+        elif ev.name == "alt":
             self._alt = False
-        elif key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r):
+        elif ev.name == "cmd":
             self._cmd = False
 
-    def _on_press(self, key):
+    def _on_press(self, ev):
         if self._injecting:
             return
-        if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
+        name = ev.name
+        if name == "ctrl":
             self._ctrl = True
             self._reset()
             return
-        if key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt_gr):
+        if name == "alt":
             self._alt = True
             self._reset()
             return
-        if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r):
+        if name == "cmd":
             self._cmd = True
             self._reset()
             return
         if self._ctrl or self._alt or self._cmd:
             return
-        if key in (keyboard.Key.shift, keyboard.Key.shift_l, keyboard.Key.shift_r):
+        if name == "shift":
             return
-        if key == keyboard.Key.backspace:
+        if name == "backspace":
             with self._lock:
                 self._buffer = self._buffer[:-1]
                 self._generation += 1
             self._cancel()
             return
-        if key in (
-            keyboard.Key.left, keyboard.Key.right, keyboard.Key.up, keyboard.Key.down,
-            keyboard.Key.home, keyboard.Key.end, keyboard.Key.page_up, keyboard.Key.page_down,
-            keyboard.Key.delete, keyboard.Key.esc, keyboard.Key.tab, keyboard.Key.enter,
-        ):
+        if name in _RESET_KEYS:
             self._reset()
             return
-        try:
-            ch = key.char
-        except AttributeError:
-            ch = None
+        ch = ev.char
         if not ch:
             return
         with self._lock:
@@ -150,12 +212,21 @@ class AutoFixer:
     def _replace(self, text, fixed):
         self._injecting = True
         try:
-            controller = keyboard.Controller()
-            for _ in range(len(text)):
-                controller.press(keyboard.Key.backspace)
-                controller.release(keyboard.Key.backspace)
-            controller.type(fixed)
-        except Exception:
-            pass
+            try:
+                from core.clipboard import _paste_key, get_clipboard, press_backspace, set_clipboard
+
+                press_backspace(len(text))
+                backup = get_clipboard()
+                set_clipboard(fixed)
+                time.sleep(0.03)
+                _paste_key()
+                threading.Timer(0.6, lambda: set_clipboard(backup)).start()
+            except Exception:
+                controller = keyboard.Controller()
+                for _ in range(len(text)):
+                    controller.press(keyboard.Key.backspace)
+                    controller.release(keyboard.Key.backspace)
+                controller.type(fixed)
+            time.sleep(0.2)
         finally:
             self._injecting = False
