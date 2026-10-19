@@ -4,7 +4,8 @@ set -euo pipefail
 
 APP_NAME="Persian Typo Fixer"
 APP_ID="com.thegreatazizi.persiantypofixer"
-VERSION="1.0.0"
+VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo 1.0.0)"
+VERSION="${VERSION#v}"
 APP_DIR="AppDir"
 USR="$APP_DIR/usr"
 BIN="$USR/bin"

@@ -8,8 +8,10 @@ import time
 import pyautogui
 import pyperclip
 
+pyautogui.FAILSAFE = False
+
 SYSTEM = platform.system()
-SENTINEL = "\u0000PTF_CLIPBOARD_SENTINEL\u0000"
+SENTINEL = "PTF-CLIP-SENTINEL-9A3F4B2C"
 
 
 def get_clipboard() -> str:
@@ -46,9 +48,9 @@ def grab_selection(timeout: float = 0.8) -> str:
     deadline = time.time() + timeout
     while time.time() < deadline:
         value = get_clipboard()
-        if value != SENTINEL:
+        if value and value != SENTINEL:
             return value
-        time.sleep(0.02)
+        time.sleep(0.03)
     return ""
 
 

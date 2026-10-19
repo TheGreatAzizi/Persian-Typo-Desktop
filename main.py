@@ -4,6 +4,7 @@
 import json
 import os
 import sys
+import time
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon
@@ -51,7 +52,7 @@ def save_config(cfg):
 
 
 class App(QObject):
-    fix_finished = pyqtSignal(str)
+    fix_finished = pyqtSignal(str, str)
 
     def __init__(self):
         super().__init__()
@@ -104,12 +105,31 @@ class App(QObject):
 
     def _hotkey_pressed(self):
         if not self.cfg.get("enabled", True):
+            self.fix_finished.emit("disabled", "")
             return
+        time.sleep(0.18)
         fixed = fix_selection(self.cfg)
-        self.fix_finished.emit(fixed)
+        if fixed:
+            self.fix_finished.emit("ok", fixed)
+        else:
+            self.fix_finished.emit("empty", "")
 
-    def _on_fix_finished(self, fixed_text):
-        if not fixed_text:
+    def _on_fix_finished(self, kind, fixed_text):
+        if kind == "disabled":
+            self.tray.showMessage(
+                "غلط‌گیر فارسی",
+                "برنامه خاموش است؛ از منوی آیکون سینی روشنش کنید.",
+                QSystemTrayIcon.MessageIcon.Information,
+                2000,
+            )
+            return
+        if kind != "ok" or not fixed_text:
+            self.tray.showMessage(
+                "غلط‌گیر فارسی",
+                "متن انتخاب‌شده‌ای پیدا نشد یا نیازی به اصلاح نبود.",
+                QSystemTrayIcon.MessageIcon.Information,
+                2000,
+            )
             return
         preview = fixed_text if len(fixed_text) <= 60 else fixed_text[:60] + "…"
         self.tray.showMessage(
