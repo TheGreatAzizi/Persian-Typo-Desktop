@@ -6,7 +6,7 @@ APP_ID="com.thegreatazizi.persiantypofixer"
 APP_BIN="PersianTypoFixer"
 VERSION="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' \
   dotnet/src/PersianTypoFixer.App/PersianTypoFixer.App.csproj | head -n1)"
-VERSION="${VERSION:-2.1.1}"
+VERSION="${VERSION:-2.1.2}"
 APP_DIR="AppDir"
 USR="$APP_DIR/usr"
 BIN="$USR/bin"

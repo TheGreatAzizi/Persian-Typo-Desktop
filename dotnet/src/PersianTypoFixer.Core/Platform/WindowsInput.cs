@@ -130,11 +130,12 @@ public sealed class WindowsInput : IInputBackend
 
     public void PressBackspace(int count)
     {
+        var delay = count > 8 ? 1 : 5;
         for (var i = 0; i < count; i++)
         {
             keybd_event(VK_BACK, 0, 0, UIntPtr.Zero);
             keybd_event(VK_BACK, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-            Thread.Sleep(5);
+            Thread.Sleep(delay);
         }
     }
 

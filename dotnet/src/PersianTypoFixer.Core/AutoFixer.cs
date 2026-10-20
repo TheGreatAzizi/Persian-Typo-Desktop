@@ -8,7 +8,6 @@ public sealed class AutoFixer : IDisposable
     private const int DebounceMs = 450;
 
     private static readonly Regex BoundaryRe = new(@"[\s.,!?؟؛;:،…»)\]}\-–—]$", RegexOptions.Compiled);
-    private static readonly Regex TailRe = new(@"(?:[^\s]+\s+)?[^\s]+(?:\s+)?$", RegexOptions.Compiled);
 
     private static readonly HashSet<string> ResetKeys = new(StringComparer.Ordinal)
     {
@@ -19,6 +18,7 @@ public sealed class AutoFixer : IDisposable
     private readonly IInputBackend _input;
     private readonly object _gate = new();
     private string _buffer = "";
+    private int _fixStart;
     private Timer? _timer;
     private int _generation;
     private volatile bool _injecting;
@@ -73,6 +73,7 @@ public sealed class AutoFixer : IDisposable
         lock (_gate)
         {
             _buffer = "";
+            _fixStart = 0;
             _generation++;
         }
     }
@@ -120,6 +121,8 @@ public sealed class AutoFixer : IDisposable
             {
                 if (_buffer.Length > 0)
                     _buffer = _buffer[..^1];
+                if (_fixStart > _buffer.Length)
+                    _fixStart = _buffer.Length;
                 _generation++;
             }
             Cancel();
@@ -136,7 +139,11 @@ public sealed class AutoFixer : IDisposable
         int gen;
         lock (_gate)
         {
-            _buffer = ClampTail(_buffer + ch.Value);
+            var combined = _buffer + ch.Value;
+            var overflow = Math.Max(0, combined.Length - MaxBuffer);
+            _buffer = overflow > 0 ? combined[overflow..] : combined;
+            if (overflow > 0)
+                _fixStart = Math.Max(0, _fixStart - overflow);
             _generation++;
             gen = _generation;
         }
@@ -170,11 +177,13 @@ public sealed class AutoFixer : IDisposable
         if (!options.Enabled)
             return;
         string text;
+        int start;
         lock (_gate)
         {
             if (gen != _generation)
                 return;
             text = _buffer;
+            start = Math.Clamp(_fixStart, 0, text.Length);
             _timer = null;
         }
         if (options.Notices)
@@ -183,8 +192,11 @@ public sealed class AutoFixer : IDisposable
             return;
         if (text.Trim().Length == 0 || !BoundaryRe.IsMatch(text))
             return;
-        var match = TailRe.Match(text);
-        var snippet = match.Success ? match.Value : text;
+        if (start >= text.Length)
+            return;
+        var snippet = text[start..];
+        if (string.IsNullOrWhiteSpace(snippet))
+            return;
         string fixedText;
         try
         {
@@ -195,13 +207,21 @@ public sealed class AutoFixer : IDisposable
             return;
         }
         if (fixedText == snippet)
+        {
+            lock (_gate)
+            {
+                if (gen == _generation)
+                    _fixStart = LastWordStart(text);
+            }
             return;
+        }
         Replace(snippet, fixedText);
         lock (_gate)
         {
             if (gen == _generation)
             {
-                _buffer = ClampTail(text[..^snippet.Length] + fixedText);
+                _buffer = ClampTail(text[..start] + fixedText);
+                _fixStart = LastWordStart(_buffer);
                 _generation++;
             }
         }
@@ -261,6 +281,17 @@ public sealed class AutoFixer : IDisposable
     }
 
     public void Dispose() => Stop();
+
+    private static int LastWordStart(string value)
+    {
+        var end = value.Length;
+        while (end > 0 && char.IsWhiteSpace(value[end - 1]))
+            end--;
+        var start = end;
+        while (start > 0 && !char.IsWhiteSpace(value[start - 1]))
+            start--;
+        return start;
+    }
 
     private static string ClampTail(string value)
         => value.Length > MaxBuffer ? value[^MaxBuffer..] : value;

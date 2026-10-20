@@ -11,7 +11,7 @@
     <AssemblyName>PersianTypoFixer</AssemblyName>
     <RootNamespace>PersianTypoFixer.App</RootNamespace>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
-    <Version>2.1.1</Version>
+    <Version>2.1.2</Version>
   </PropertyGroup>
 
   <ItemGroup>
