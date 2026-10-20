@@ -19,6 +19,8 @@ public partial class App : Application
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             _controller = new AppController(desktop);
             _controller.Start();
+            if (desktop.Args?.Contains("--settings") == true)
+                _controller.ShowWindow();
         }
         base.OnFrameworkInitializationCompleted();
     }

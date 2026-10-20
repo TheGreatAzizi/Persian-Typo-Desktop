@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace PersianTypoFixer.Core;
@@ -15,9 +14,6 @@ public sealed class AutoFixer : IDisposable
     {
         "left", "right", "up", "down", "home", "end", "page_up", "page_down", "delete", "esc", "tab", "enter",
     };
-
-    private static readonly string? DebugPath = Environment.GetEnvironmentVariable("PTF_DEBUG_LOG");
-    private static readonly object DebugGate = new();
 
     private readonly Func<FixOptions> _options;
     private readonly IInputBackend _input;
@@ -40,6 +36,8 @@ public sealed class AutoFixer : IDisposable
 
     public event Action<string, string>? Replaced;
 
+    public event Action<SemanticNotice>? NoticeDetected;
+
     public void Start()
     {
         if (_keyboard != null)
@@ -55,7 +53,6 @@ public sealed class AutoFixer : IDisposable
             return;
         }
         _keyboard.Start();
-        Log("started");
     }
 
     public void Stop()
@@ -94,7 +91,6 @@ public sealed class AutoFixer : IDisposable
     {
         if (_injecting)
             return;
-        Log("press name=" + ev.Name + " char=" + (ev.Char is char debugChar ? ((int)debugChar).ToString("X4") : "-"));
         var name = ev.Name;
         if (name == "ctrl")
         {
@@ -171,27 +167,22 @@ public sealed class AutoFixer : IDisposable
     private void MaybeFix(int gen)
     {
         var options = _options();
-        if (!options.AutoFix || !options.Enabled)
-        {
-            Log("maybe gen=" + gen + " skipped=options");
+        if (!options.Enabled)
             return;
-        }
         string text;
         lock (_gate)
         {
             if (gen != _generation)
-            {
-                Log("maybe gen=" + gen + " skipped=stale current=" + _generation);
                 return;
-            }
             text = _buffer;
             _timer = null;
         }
-        if (text.Trim().Length == 0 || !BoundaryRe.IsMatch(text))
-        {
-            Log("maybe gen=" + gen + " skipped=boundary text=" + Escape(text));
+        if (options.Notices)
+            EmitNotices(text);
+        if (!options.AutoFix)
             return;
-        }
+        if (text.Trim().Length == 0 || !BoundaryRe.IsMatch(text))
+            return;
         var match = TailRe.Match(text);
         var snippet = match.Success ? match.Value : text;
         string fixedText;
@@ -199,12 +190,10 @@ public sealed class AutoFixer : IDisposable
         {
             fixedText = Fixer.FixText(snippet, options);
         }
-        catch (Exception ex)
+        catch
         {
-            Log("maybe fixer-error " + ex.Message);
             return;
         }
-        Log("maybe gen=" + gen + " snippet=" + Escape(snippet) + " fixed=" + Escape(fixedText));
         if (fixedText == snippet)
             return;
         Replace(snippet, fixedText);
@@ -218,10 +207,32 @@ public sealed class AutoFixer : IDisposable
         }
     }
 
+    private void EmitNotices(string text)
+    {
+        List<SemanticNotice> found;
+        try
+        {
+            found = Notices.Find(text);
+        }
+        catch
+        {
+            return;
+        }
+        foreach (var notice in found)
+        {
+            try
+            {
+                NoticeDetected?.Invoke(notice);
+            }
+            catch
+            {
+            }
+        }
+    }
+
     private void Replace(string text, string fixedText)
     {
         _injecting = true;
-        Log("replace text=" + Escape(text) + " fixed=" + Escape(fixedText));
         try
         {
             _input.PressBackspace(text.Length);
@@ -253,33 +264,4 @@ public sealed class AutoFixer : IDisposable
 
     private static string ClampTail(string value)
         => value.Length > MaxBuffer ? value[^MaxBuffer..] : value;
-
-    private static void Log(string message)
-    {
-        if (DebugPath == null)
-            return;
-        try
-        {
-            lock (DebugGate)
-            {
-                File.AppendAllText(DebugPath, DateTime.Now.ToString("HH:mm:ss.fff") + " " + message + Environment.NewLine);
-            }
-        }
-        catch
-        {
-        }
-    }
-
-    private static string Escape(string value)
-    {
-        var builder = new StringBuilder(value.Length * 6);
-        foreach (var c in value)
-        {
-            if (c < 128)
-                builder.Append(c);
-            else
-                builder.Append("\\u").Append(((int)c).ToString("X4"));
-        }
-        return builder.ToString();
-    }
 }

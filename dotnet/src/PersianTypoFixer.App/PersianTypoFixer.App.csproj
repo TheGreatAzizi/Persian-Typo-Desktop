@@ -11,6 +11,7 @@
     <AssemblyName>PersianTypoFixer</AssemblyName>
     <RootNamespace>PersianTypoFixer.App</RootNamespace>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <Version>2.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,6 +28,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\icon.png" />
+    <AvaloniaResource Include="Assets\Fonts\*.ttf" />
   </ItemGroup>
 </Project>
 

@@ -114,6 +114,38 @@ var f3 = Load<Fuzz3>(Path.Combine(fixtures, "fuzz3_js.json"));
 for (var i = 0; i < f3.Cases.Count; i++)
     Check("fuzz3", f3.Cases[i].Value, f3.Results[i], Fixer.FixText(f3.Cases[i].Value, f3.Cases[i].Opts));
 
+// 6) semantic notices
+void CheckNotice(string label, string input, params string[] expectedIds)
+{
+    total++;
+    var ids = Notices.Find(input).Select(n => n.Id).ToArray();
+    if (ids.SequenceEqual(expectedIds))
+        return;
+    fails++;
+    if (fails <= 25)
+        Console.WriteLine($"FAIL notice-{label} in=[{Esc(input)}] expected=[{string.Join(",", expectedIds)}] actual=[{string.Join(",", ids)}]");
+}
+
+CheckNotice("bzar", "من کتاب رو بزارم", "bzar");
+CheckNotice("zar", "میزارم", "zar");
+CheckNotice("gozar", "میگزارم", "gozar");
+CheckNotice("gozar-suppress", "نماز میگزارم");
+CheckNotice("khast", "میخاستم", "khast");
+CheckNotice("hayat", "حیات", "hayat");
+CheckNotice("clean", "بذارم");
+CheckNotice("dedupe", "بزارم بزارم", "bzar");
+CheckNotice("too-long", new string('ب', 2000) + " بزارم");
+Check("notice-no-autofix", "بزارم", "بزارم", Fixer.FixText("بزارم", def));
+
+var bzarNotice = Notices.Find("بزارم").FirstOrDefault();
+total++;
+if (bzarNotice == null || !bzarNotice.Message.Contains("بذارم"))
+{
+    fails++;
+    if (fails <= 25)
+        Console.WriteLine("FAIL notice-bzar-suggestion");
+}
+
 Console.WriteLine($"TOTAL={total} FAILS={fails}");
 return fails == 0 ? 0 : 1;
 

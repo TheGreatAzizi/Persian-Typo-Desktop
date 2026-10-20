@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using PersianTypoFixer.Core;
 using PersianTypoFixer.Core.Platform;
 
@@ -17,8 +18,13 @@ public sealed class AppController
     private WindowsHotkey? _hotkey;
     private LinuxHotkey? _linuxHotkey;
     private TrayIcon? _tray;
+    private NativeMenuItem? _enabledItem;
     private SettingsWindow? _window;
     private bool _trayAvailable;
+    private readonly Queue<SemanticNotice> _noticeQueue = new();
+    private readonly Dictionary<string, DateTime> _noticeSeen = new(StringComparer.Ordinal);
+    private NoticeWindow? _noticeWindow;
+    private DispatcherTimer? _noticeTimer;
 
     public AppController(IClassicDesktopStyleApplicationLifetime lifetime)
     {
@@ -78,6 +84,7 @@ public sealed class AppController
             if (_autoFixer == null)
             {
                 _autoFixer = new AutoFixer(() => _config, _input);
+                _autoFixer.NoticeDetected += ShowNotice;
                 try
                 {
                     _autoFixer.Start();
@@ -115,8 +122,15 @@ public sealed class AppController
                 SetStatus(Status + " | xclip یا xsel نصب نیست؛ کلیپ‌بورد در دسترس نیست.");
         }
 
-        if (_tray != null)
-            _tray.ToolTipText = "اصلاح‌گر تایپ فارسی" + (_config.Enabled ? " — فعال" : " — غیرفعال");
+        if (_enabledItem != null)
+            _enabledItem.IsChecked = _config.Enabled;
+        UpdateTrayText();
+
+        if (!_config.Enabled || !_config.Notices)
+        {
+            _noticeQueue.Clear();
+            _noticeWindow?.Close();
+        }
 
         if (string.IsNullOrEmpty(Status))
             SetStatus(DefaultStatus());
@@ -125,7 +139,11 @@ public sealed class AppController
         _window?.UpdateStatus();
     }
 
-    public void FixSelection()
+    public void FixSelection() => FixSelectionCore(copyOnly: false);
+
+    public void FixSelectionAndCopy() => FixSelectionCore(copyOnly: true);
+
+    private void FixSelectionCore(bool copyOnly)
     {
         if (!_config.Enabled)
         {
@@ -155,7 +173,16 @@ public sealed class AppController
                     SetStatus("متنی انتخاب نشده بود.");
                     return;
                 }
+                NotifyNotices(text);
                 var fixedText = Fixer.FixText(text, _config);
+                if (copyOnly)
+                {
+                    _input.SetClipboard(fixedText);
+                    SetStatus(fixedText == text
+                        ? "متن در کلیپ‌بورد کپی شد."
+                        : "متن اصلاح‌شده در کلیپ‌بورد کپی شد.");
+                    return;
+                }
                 if (fixedText == text)
                 {
                     _input.SetClipboard(backup);
@@ -185,6 +212,69 @@ public sealed class AppController
         });
     }
 
+    public void NotifyNotices(string text)
+    {
+        if (!_config.Enabled || !_config.Notices || string.IsNullOrWhiteSpace(text))
+            return;
+        List<SemanticNotice> found;
+        try
+        {
+            found = Notices.Find(text);
+        }
+        catch
+        {
+            return;
+        }
+        if (found.Count == 0)
+            return;
+        Dispatcher.UIThread.Post(() =>
+        {
+            foreach (var notice in found)
+                EnqueueNotice(notice);
+        });
+    }
+
+    public void ShowNotice(SemanticNotice notice)
+    {
+        if (notice != null)
+            Dispatcher.UIThread.Post(() => EnqueueNotice(notice));
+    }
+
+    private void EnqueueNotice(SemanticNotice notice)
+    {
+        if (!_config.Enabled || !_config.Notices)
+            return;
+        var key = notice.Id + ":" + notice.Word;
+        if (_noticeSeen.TryGetValue(key, out var seen) &&
+            DateTime.UtcNow - seen < TimeSpan.FromMinutes(10))
+        {
+            return;
+        }
+        _noticeSeen[key] = DateTime.UtcNow;
+        _noticeQueue.Enqueue(notice);
+        ShowNextNotice();
+    }
+
+    private void ShowNextNotice()
+    {
+        if (_noticeWindow != null || _noticeQueue.Count == 0)
+            return;
+        var notice = _noticeQueue.Dequeue();
+        var window = new NoticeWindow(notice.Message);
+        _noticeWindow = window;
+        window.Closed += (_, _) =>
+        {
+            _noticeTimer?.Stop();
+            _noticeTimer = null;
+            _noticeWindow = null;
+            ShowNextNotice();
+        };
+        window.Show();
+        _noticeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(9) };
+        _noticeTimer.Tick += (_, _) => window.Close();
+        _noticeTimer.Start();
+    }
+
     public void ShowWindow()
     {
         if (_window == null)
@@ -202,6 +292,10 @@ public sealed class AppController
     {
         try
         {
+            _noticeTimer?.Stop();
+            _noticeTimer = null;
+            _noticeWindow?.Close();
+            _noticeWindow = null;
             _autoFixer?.Dispose();
             _hotkey?.Dispose();
             _linuxHotkey?.Dispose();
@@ -211,6 +305,23 @@ public sealed class AppController
         {
         }
         _lifetime.Shutdown();
+    }
+
+    private void ToggleEnabled()
+    {
+        _config.Enabled = !_config.Enabled;
+        if (_enabledItem != null)
+            _enabledItem.IsChecked = _config.Enabled;
+        _config.Save();
+        UpdateTrayText();
+        SetStatus(_config.Enabled ? "برنامه فعال شد." : "برنامه غیرفعال شد.");
+        _window?.RefreshFromConfig();
+    }
+
+    private void UpdateTrayText()
+    {
+        if (_tray != null)
+            _tray.ToolTipText = "اصلاح‌گر تایپ فارسی" + (_config.Enabled ? " — فعال" : " — غیرفعال");
     }
 
     public void SetStatus(string status)
@@ -239,13 +350,25 @@ public sealed class AppController
                 IsVisible = true,
             };
             var menu = new NativeMenu();
+            _enabledItem = new NativeMenuItem("فعال")
+            {
+                ToggleType = NativeMenuItemToggleType.CheckBox,
+                IsChecked = _config.Enabled,
+            };
+            _enabledItem.Click += (_, _) => ToggleEnabled();
             var fixItem = new NativeMenuItem("اصلاح متن انتخاب‌شده");
             fixItem.Click += (_, _) => FixSelection();
+            var copyItem = new NativeMenuItem("اصلاح و کپی");
+            copyItem.Click += (_, _) => FixSelectionAndCopy();
             var settingsItem = new NativeMenuItem("تنظیمات…");
             settingsItem.Click += (_, _) => ShowWindow();
             var exitItem = new NativeMenuItem("خروج");
             exitItem.Click += (_, _) => Exit();
+            menu.Items.Add(_enabledItem);
+            menu.Items.Add(new NativeMenuItemSeparator());
             menu.Items.Add(fixItem);
+            menu.Items.Add(copyItem);
+            menu.Items.Add(new NativeMenuItemSeparator());
             menu.Items.Add(settingsItem);
             menu.Items.Add(new NativeMenuItemSeparator());
             menu.Items.Add(exitItem);
