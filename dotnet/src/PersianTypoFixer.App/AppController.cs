@@ -10,6 +10,7 @@ namespace PersianTypoFixer.App;
 public sealed class AppController
 {
     private const string Sentinel = "PTF-CLIP-SENTINEL-9A3F4B2C";
+    private const string SentinelPrefix = "PTF-CLIP-SENTINEL";
 
     private readonly IClassicDesktopStyleApplicationLifetime _lifetime;
     private readonly IInputBackend _input;
@@ -99,27 +100,34 @@ public sealed class AppController
         {
             _linuxHotkey?.Dispose();
             _linuxHotkey = null;
-            try
+            if (_input is LinuxInput { IsWayland: true })
             {
-                var hotkey = new LinuxHotkey(FixSelection, _config.Hotkey);
-                hotkey.Start();
-                if (hotkey.IsRegistered)
-                {
-                    _linuxHotkey = hotkey;
-                    SetStatus($"آماده — میانبر: {_config.Hotkey} (اصلاح خودکار هنگام تایپ فقط در ویندوز)");
-                }
-                else
-                {
-                    hotkey.Dispose();
-                    SetStatus("میانبر سراسری ثبت نشد (X11 لازم است)؛ از منوی سینی برای اصلاح متن استفاده کنید.");
-                }
+                SetStatus("حالت Wayland: میانبر سراسری در دسترس نیست؛ از منوی سینی برای اصلاح متن استفاده کنید.");
             }
-            catch (Exception ex)
+            else
             {
-                SetStatus("خطا در ثبت میانبر: " + ex.Message);
+                try
+                {
+                    var hotkey = new LinuxHotkey(FixSelection, _config.Hotkey);
+                    hotkey.Start();
+                    if (hotkey.IsRegistered)
+                    {
+                        _linuxHotkey = hotkey;
+                        SetStatus($"آماده — میانبر: {_config.Hotkey} (اصلاح خودکار هنگام تایپ فقط در ویندوز)");
+                    }
+                    else
+                    {
+                        hotkey.Dispose();
+                        SetStatus("میانبر سراسری ثبت نشد (X11 لازم است)؛ از منوی سینی برای اصلاح متن استفاده کنید.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SetStatus("خطا در ثبت میانبر: " + ex.Message);
+                }
             }
             if (_input is LinuxInput linux && !linux.IsAvailable)
-                SetStatus(Status + " | xclip یا xsel نصب نیست؛ کلیپ‌بورد در دسترس نیست.");
+                SetStatus(Status + " | ابزار کلیپ‌بورد نصب نیست (wl-clipboard برای Wayland، xclip/xsel برای X11).");
         }
 
         if (_enabledItem != null)
@@ -139,6 +147,8 @@ public sealed class AppController
         _window?.UpdateStatus();
     }
 
+    private int _fixBusy;
+
     public void FixSelection() => FixSelectionCore(copyOnly: false);
 
     public void FixSelectionAndCopy() => FixSelectionCore(copyOnly: true);
@@ -150,66 +160,139 @@ public sealed class AppController
             SetStatus("برنامه غیرفعال است.");
             return;
         }
+        if (Interlocked.CompareExchange(ref _fixBusy, 1, 0) != 0)
+            return;
+
         Task.Run(() =>
         {
+            var backup = "";
+            var backupSaved = false;
+            var restoreBackup = false;
             try
             {
-                var backup = _input.GetClipboard();
+                if (OperatingSystem.IsLinux())
+                {
+                    var text = _input.GetSelection();
+                    if (string.IsNullOrWhiteSpace(text))
+                    {
+                        SetStatus("متنی انتخاب نشده بود.");
+                        return;
+                    }
+
+                    NotifyNotices(text);
+                    var fixedText = Fixer.FixText(text, _config);
+                    if (copyOnly)
+                    {
+                        _input.SetClipboard(fixedText);
+                        SetStatus(fixedText == text
+                            ? "متن در کلیپ‌بورد کپی شد."
+                            : "متن اصلاح‌شده در کلیپ‌بورد کپی شد.");
+                        return;
+                    }
+                    if (_input is LinuxInput { CanAutoPaste: false })
+                    {
+                        _input.SetClipboard(fixedText);
+                        SetStatus(fixedText == text
+                            ? "متن در کلیپ‌بورد کپی شد؛ برای جای‌گذاری Paste کنید."
+                            : "متن اصلاح‌شده در کلیپ‌بورد کپی شد؛ برای جای‌گذاری Paste کنید.");
+                        return;
+                    }
+                    if (fixedText == text)
+                    {
+                        SetStatus("تغییری لازم نبود.");
+                        return;
+                    }
+
+                    backup = _input.GetClipboard();
+                    backupSaved = true;
+                    restoreBackup = true;
+                    _input.SetClipboard(fixedText);
+                    Thread.Sleep(150);
+                    _input.Paste();
+                    Thread.Sleep(600);
+                    if (_input.GetClipboard() == fixedText)
+                        _input.SetClipboard(SafeBackup(backup));
+                    restoreBackup = false;
+                    SetStatus("متن انتخاب‌شده اصلاح شد.");
+                    return;
+                }
+
+                backup = _input.GetClipboard();
+                backupSaved = true;
+                restoreBackup = true;
                 _input.SetClipboard(Sentinel);
                 Thread.Sleep(150);
+                if (_input.GetClipboard() != Sentinel)
+                {
+                    SetStatus("کلیپ‌بورد در دسترس نیست.");
+                    return;
+                }
                 _input.Copy();
-                var text = Sentinel;
+                var selected = Sentinel;
                 var deadline = DateTime.UtcNow.AddMilliseconds(1200);
                 while (DateTime.UtcNow < deadline)
                 {
                     Thread.Sleep(30);
-                    text = _input.GetClipboard();
-                    if (text != Sentinel)
+                    selected = _input.GetClipboard();
+                    if (selected != Sentinel)
                         break;
                 }
-                if (text == Sentinel || string.IsNullOrWhiteSpace(text))
+                if (selected == Sentinel || string.IsNullOrWhiteSpace(selected))
                 {
-                    _input.SetClipboard(backup);
                     SetStatus("متنی انتخاب نشده بود.");
                     return;
                 }
-                NotifyNotices(text);
-                var fixedText = Fixer.FixText(text, _config);
+
+                NotifyNotices(selected);
+                var fixedSelection = Fixer.FixText(selected, _config);
                 if (copyOnly)
                 {
-                    _input.SetClipboard(fixedText);
-                    SetStatus(fixedText == text
+                    _input.SetClipboard(fixedSelection);
+                    restoreBackup = false;
+                    SetStatus(fixedSelection == selected
                         ? "متن در کلیپ‌بورد کپی شد."
                         : "متن اصلاح‌شده در کلیپ‌بورد کپی شد.");
                     return;
                 }
-                if (fixedText == text)
+                if (fixedSelection == selected)
                 {
-                    _input.SetClipboard(backup);
                     SetStatus("تغییری لازم نبود.");
                     return;
                 }
-                _input.SetClipboard(fixedText);
-                Thread.Sleep(OperatingSystem.IsLinux() ? 150 : 40);
+
+                _input.SetClipboard(fixedSelection);
+                Thread.Sleep(40);
                 _input.Paste();
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(600).ConfigureAwait(false);
-                    try
-                    {
-                        _input.SetClipboard(backup);
-                    }
-                    catch
-                    {
-                    }
-                });
+                Thread.Sleep(600);
+                if (_input.GetClipboard() == fixedSelection)
+                    _input.SetClipboard(SafeBackup(backup));
+                restoreBackup = false;
                 SetStatus("متن انتخاب‌شده اصلاح شد.");
             }
             catch (Exception ex)
             {
                 SetStatus("خطا: " + ex.Message);
             }
+            finally
+            {
+                if (restoreBackup && backupSaved)
+                {
+                    try
+                    {
+                        _input.SetClipboard(SafeBackup(backup));
+                    }
+                    catch
+                    {
+                    }
+                }
+                Interlocked.Exchange(ref _fixBusy, 0);
+            }
         });
+    }
+
+    private static string SafeBackup(string backup)
+    {
+        return backup.Contains(SentinelPrefix, StringComparison.Ordinal) ? "" : backup;
     }
 
     public void NotifyNotices(string text)
@@ -290,6 +373,9 @@ public sealed class AppController
 
     public void Exit()
     {
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (Volatile.Read(ref _fixBusy) != 0 && DateTime.UtcNow < deadline)
+            Thread.Sleep(50);
         try
         {
             _noticeTimer?.Stop();
@@ -385,6 +471,7 @@ public sealed class AppController
     private sealed class NullInput : IInputBackend
     {
         public string GetClipboard() => "";
+        public string? GetSelection() => null;
         public void SetClipboard(string text) { }
         public void PressBackspace(int count) { }
         public void Paste() { }

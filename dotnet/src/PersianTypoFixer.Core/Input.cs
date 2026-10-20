@@ -14,6 +14,7 @@ public sealed class KeyEvent
 public interface IInputBackend
 {
     string GetClipboard();
+    string? GetSelection();
     void SetClipboard(string text);
     void PressBackspace(int count);
     void Paste();

@@ -29,36 +29,54 @@ public sealed class LinuxInput : IInputBackend
 
     private readonly string? _clipboardGet;
     private readonly string? _clipboardSet;
+    private readonly string? _selectionGet;
     private readonly string? _injector;
     private volatile bool _xtest = true;
 
     public LinuxInput()
     {
         var wayland = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
+        IsWayland = wayland;
         if (wayland && Which("wl-paste") != null && Which("wl-copy") != null)
         {
             _clipboardGet = "wl-paste --no-newline";
             _clipboardSet = "wl-copy";
+            _selectionGet = "wl-paste --primary --no-newline";
         }
         else if (Which("xclip") != null)
         {
             _clipboardGet = "xclip -selection clipboard -o";
             _clipboardSet = "xclip -selection clipboard -i";
+            _selectionGet = "xclip -selection primary -o";
         }
         else if (Which("xsel") != null)
         {
             _clipboardGet = "xsel --clipboard --output";
             _clipboardSet = "xsel --clipboard --input";
+            _selectionGet = "xsel --primary --output";
         }
         else
         {
             _clipboardGet = null;
             _clipboardSet = null;
+            _selectionGet = null;
         }
         _injector = Which("xdotool") != null ? "xdotool" : Which("ydotool") != null ? "ydotool" : null;
     }
 
+    public bool IsWayland { get; }
+
+    public bool CanAutoPaste => !IsWayland;
+
     public bool IsAvailable => _clipboardGet != null && _clipboardSet != null;
+
+    public string? GetSelection()
+    {
+        if (_selectionGet == null)
+            return null;
+        var (code, output) = RunGet(_selectionGet);
+        return code == 0 ? output : null;
+    }
 
     public string GetClipboard()
     {

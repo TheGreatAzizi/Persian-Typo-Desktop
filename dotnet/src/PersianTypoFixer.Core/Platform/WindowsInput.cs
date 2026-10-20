@@ -49,6 +49,8 @@ public sealed class WindowsInput : IInputBackend
 
     private const uint KEYEVENTF_KEYUP = 0x0002;
 
+    public string? GetSelection() => null;
+
     public string GetClipboard()
     {
         for (var attempt = 0; attempt < 10; attempt++)
