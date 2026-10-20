@@ -2,61 +2,41 @@
 # build_appimage.sh — ساخت AppImage برای لینوکس (آرچ و دیگر توزیع‌ها)
 set -euo pipefail
 
-APP_NAME="Persian Typo Fixer"
 APP_ID="com.thegreatazizi.persiantypofixer"
-VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo 1.0.0)"
+APP_BIN="PersianTypoFixer"
+VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo 2.0.0)"
 VERSION="${VERSION#v}"
 APP_DIR="AppDir"
 USR="$APP_DIR/usr"
 BIN="$USR/bin"
-LIB="$USR/lib"
 SHARE="$USR/share"
-ICON="$SHARE/icons/hicolor/128x128/apps"
+ICON="$SHARE/icons/hicolor/256x256/apps"
 DESKTOP="$SHARE/applications"
 
 rm -rf "$APP_DIR" dist
-mkdir -p "$BIN" "$LIB" "$ICON" "$DESKTOP"
+mkdir -p "$BIN" "$ICON" "$DESKTOP"
 
-# ۱) نصب وابستگی‌ها در یک محیط مجازی
-if [ ! -d ".venv" ]; then
-  python3 -m venv .venv
-fi
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-pip install pyinstaller
+# ۱) ساخت باینری لینوکس با .NET 8 (self-contained، تک‌فایل)
+dotnet publish dotnet/src/PersianTypoFixer.App/PersianTypoFixer.App.csproj \
+  -c Release -r linux-x64 --self-contained true \
+  -p:PublishSingleFile=true \
+  -p:IncludeNativeLibrariesForSelfExtract=true \
+  -o dist/linux
+cp "dist/linux/$APP_BIN" "$BIN/$APP_BIN"
+chmod +x "$BIN/$APP_BIN"
 
-# ۲) ساخت باینری لینوکس با PyInstaller (onefile، بدون کنسول)
-pyinstaller --noconfirm --clean --onefile --windowed \
-  --name "$APP_NAME" \
-  --icon assets/icon.png \
-  --add-data "assets/icon.png:assets" \
-  --hiddenimport PyQt6.QtWidgets \
-  --hiddenimport PyQt6.QtGui \
-  --hiddenimport PyQt6.QtCore \
-  --hiddenimport pyperclip \
-  --hiddenimport pyautogui \
-  --hiddenimport pynput \
-  --hiddenimport core.fixer \
-  --hiddenimport core.clipboard \
-  --hiddenimport core.hotkey \
-  --hiddenimport ui.settings \
-  main.py
-
-# ۳) کپی باینری به AppDir
-cp "dist/$APP_NAME" "$BIN/$APP_NAME"
-chmod +x "$BIN/$APP_NAME"
-
-# ۴) آیکون‌ها و فایل دسکتاپ
+# ۲) آیکون‌ها و فایل دسکتاپ (فایل دسکتاپ باید در ریشهٔ AppDir هم باشد)
 cp assets/icon.png "$ICON/$APP_ID.png"
 cp assets/icon.png "$APP_DIR/$APP_ID.png"
 cp assets/icon.png "$APP_DIR/.DirIcon"
 
 cat > "$DESKTOP/$APP_ID.desktop" <<EOF
 [Desktop Entry]
-Name=$APP_NAME
+Name=Persian Typo Fixer
+Name[fa]=اصلاح‌گر تایپ فارسی
 GenericName=Persian Typo Fixer
-Comment=اصلاح خودکار متن فارسی در همه برنامه‌ها
+Comment=Fix Persian text in any application
+Comment[fa]=اصلاح خودکار متن فارسی در همه برنامه‌ها
 Exec=AppRun %F
 Icon=$APP_ID
 Terminal=false
@@ -66,21 +46,17 @@ StartupNotify=true
 EOF
 cp "$DESKTOP/$APP_ID.desktop" "$APP_DIR/$APP_ID.desktop"
 
-# ۵) فایل AppRun برای اجرای AppImage
+# ۳) فایل AppRun برای اجرای AppImage
 cat > "$APP_DIR/AppRun" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 HERE="$(dirname "$(readlink -f "$0")")"
 export APPDIR="$HERE"
-export PATH="$HERE/usr/bin:$PATH"
-export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
-export QT_QPA_PLATFORM_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"
-export QT_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"
-exec "$HERE/usr/bin/Persian Typo Fixer" "$@"
+exec "$HERE/usr/bin/PersianTypoFixer" "$@"
 EOF
 chmod +x "$APP_DIR/AppRun"
 
-# ۶) آماده‌سازی appimagetool
+# ۴) آماده‌سازی appimagetool
 if command -v appimagetool &> /dev/null; then
   APPIMAGETOOL="appimagetool"
 elif [ -x "./appimagetool" ]; then
@@ -94,7 +70,7 @@ else
   APPIMAGETOOL="./appimagetool"
 fi
 
-OUT="dist/${APP_NAME}-${VERSION}-x86_64.AppImage"
+OUT="dist/Persian.Typo.Fixer-${VERSION}-x86_64.AppImage"
 mkdir -p dist
 if ! ARCH=x86_64 "$APPIMAGETOOL" "$APP_DIR" "$OUT"; then
   echo "اجرای عادی ناموفق بود؛ تلاش دوباره بدون FUSE…"

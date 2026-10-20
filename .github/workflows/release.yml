@@ -14,34 +14,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
         with:
-          python-version: '3.11'
+          dotnet-version: '8.0.x'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+      - name: Restore
+        run: dotnet restore dotnet/PersianTypoFixer.sln
 
-      - name: Build EXE (PyInstaller)
+      - name: Publish Windows executable
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed `
-            --name "Persian Typo Fixer" `
-            --icon assets/icon.png `
-            --add-data "assets/icon.png;assets" `
-            --hiddenimport PyQt6.QtWidgets `
-            --hiddenimport PyQt6.QtGui `
-            --hiddenimport PyQt6.QtCore `
-            --hiddenimport pyperclip `
-            --hiddenimport pyautogui `
-            --hiddenimport pynput `
-            --hiddenimport core.fixer `
-            --hiddenimport core.clipboard `
-            --hiddenimport core.hotkey `
-            --hiddenimport ui.settings `
-            main.py
+          dotnet publish dotnet/src/PersianTypoFixer.App/PersianTypoFixer.App.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -o dist/win
+          Move-Item dist/win/PersianTypoFixer.exe dist/win/Persian.Typo.Fixer.exe
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -52,7 +41,7 @@ jobs:
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-          files: dist/*.exe
+          files: dist/win/Persian.Typo.Fixer.exe
 
   build-linux:
     runs-on: ubuntu-latest
@@ -60,39 +49,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
         with:
-          python-version: '3.11'
+          dotnet-version: '8.0.x'
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y fuse libfuse2 wget
+          sudo apt-get install -y libfuse2 wget file
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+      - name: Restore
+        run: dotnet restore dotnet/PersianTypoFixer.sln
 
-      - name: Build Linux binary (PyInstaller)
+      - name: Publish Linux binary
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed \
-            --name "Persian Typo Fixer" \
-            --icon assets/icon.png \
-            --add-data "assets/icon.png:assets" \
-            --hiddenimport PyQt6.QtWidgets \
-            --hiddenimport PyQt6.QtGui \
-            --hiddenimport PyQt6.QtCore \
-            --hiddenimport pyperclip \
-            --hiddenimport pyautogui \
-            --hiddenimport pynput \
-            --hiddenimport core.fixer \
-            --hiddenimport core.clipboard \
-            --hiddenimport core.hotkey \
-            --hiddenimport ui.settings \
-            main.py
+          dotnet publish dotnet/src/PersianTypoFixer.App/PersianTypoFixer.App.csproj \
+            -c Release -r linux-x64 --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o dist/linux
+          chmod +x dist/linux/PersianTypoFixer
 
       - name: Download appimagetool
         run: |
@@ -103,39 +80,37 @@ jobs:
       - name: Build AppDir
         run: |
           rm -rf AppDir
-          mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/icons/hicolor/128x128/apps AppDir/usr/share/applications
-          cp "dist/Persian Typo Fixer" "AppDir/usr/bin/Persian Typo Fixer"
-          cp assets/icon.png "AppDir/usr/share/icons/hicolor/128x128/apps/com.thegreatazizi.persiantypofixer.png"
-          cp assets/icon.png "AppDir/com.thegreatazizi.persiantypofixer.png"
-          cp assets/icon.png "AppDir/.DirIcon"
-          cat > AppDir/com.thegreatazizi.persiantypofixer.desktop <<'EOF'
-          [Desktop Entry]
-          Name=Persian Typo Fixer
-          Comment=اصلاح خودکار متن فارسی در همه برنامه‌ها
-          Exec=AppRun %F
-          Icon=com.thegreatazizi.persiantypofixer
-          Terminal=false
-          Type=Application
-          Categories=Office;Utility;
-          EOF
+          mkdir -p AppDir/usr/bin AppDir/usr/share/icons/hicolor/256x256/apps AppDir/usr/share/applications
+          cp dist/linux/PersianTypoFixer AppDir/usr/bin/PersianTypoFixer
+          cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/com.thegreatazizi.persiantypofixer.png
+          cp assets/icon.png AppDir/com.thegreatazizi.persiantypofixer.png
+          cp assets/icon.png AppDir/.DirIcon
+          printf '%s\n' \
+            '[Desktop Entry]' \
+            'Name=Persian Typo Fixer' \
+            'Name[fa]=اصلاح‌گر تایپ فارسی' \
+            'Comment=Fix Persian text in any application' \
+            'Comment[fa]=اصلاح خودکار متن فارسی در همه برنامه‌ها' \
+            'Exec=AppRun %F' \
+            'Icon=com.thegreatazizi.persiantypofixer' \
+            'Terminal=false' \
+            'Type=Application' \
+            'Categories=Office;Utility;' \
+            > AppDir/com.thegreatazizi.persiantypofixer.desktop
           cp AppDir/com.thegreatazizi.persiantypofixer.desktop AppDir/usr/share/applications/com.thegreatazizi.persiantypofixer.desktop
           cat > AppDir/AppRun <<'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
           HERE="$(dirname "$(readlink -f "$0")")"
           export APPDIR="$HERE"
-          export PATH="$HERE/usr/bin:$PATH"
-          export LD_LIBRARY_PATH="$HERE/usr/lib:${LD_LIBRARY_PATH:-}"
-          export QT_QPA_PLATFORM_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"
-          export QT_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"
-          exec "$HERE/usr/bin/Persian Typo Fixer" "$@"
+          exec "$HERE/usr/bin/PersianTypoFixer" "$@"
           EOF
           chmod +x AppDir/AppRun
 
       - name: Build AppImage
         run: |
-          ARCH=x86_64 ./appimagetool AppDir "Persian Typo Fixer-${GITHUB_REF_NAME#v}-x86_64.AppImage" \
-            || ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir "Persian Typo Fixer-${GITHUB_REF_NAME#v}-x86_64.AppImage"
+          ARCH=x86_64 ./appimagetool AppDir "Persian.Typo.Fixer-${GITHUB_REF_NAME#v}-x86_64.AppImage" \
+            || ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir "Persian.Typo.Fixer-${GITHUB_REF_NAME#v}-x86_64.AppImage"
 
       - name: Upload AppImage to Release
         uses: softprops/action-gh-release@v2
@@ -143,4 +118,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
-          files: "Persian Typo Fixer-*-x86_64.AppImage"
+          files: "Persian.Typo.Fixer-*-x86_64.AppImage"

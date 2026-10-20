@@ -1,0 +1,44 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PersianTypoFixer.App.SettingsWindow"
+        Title="اصلاح‌گر تایپ فارسی"
+        Icon="avares://PersianTypoFixer/Assets/icon.png"
+        Width="560" Height="760"
+        MinWidth="480" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        FlowDirection="RightToLeft"
+        FontFamily="Segoe UI, Tahoma, Vazirmatn">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="18">
+    <StackPanel Grid.Row="0" Spacing="6">
+      <TextBlock Text="اصلاح‌گر تایپ فارسی" FontSize="22" FontWeight="Bold" />
+      <TextBlock x:Name="StatusText" TextWrapping="Wrap" Foreground="#444" />
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="1" Margin="0,14">
+      <StackPanel Spacing="4">
+        <Border Background="#F3F4F6" CornerRadius="8" Padding="12">
+          <StackPanel Spacing="8">
+            <TextBlock Text="میانبر اصلاح متن انتخاب‌شده" FontWeight="SemiBold" />
+            <TextBox x:Name="HotkeyBox" IsReadOnly="True" FlowDirection="LeftToRight"
+                     HorizontalAlignment="Left" MinWidth="190" />
+            <TextBlock Text="برای تغییر، کادر را انتخاب کنید و ترکیب کلیدها را فشار دهید (مثلاً Ctrl+Shift+F)."
+                       FontSize="12" Foreground="#666" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+
+        <StackPanel x:Name="OptionsPanel" Spacing="2" Margin="0,10,0,0" />
+
+        <TextBlock Text="کلمات سفارشی" FontWeight="SemiBold" Margin="0,14,0,0" />
+        <TextBlock Text="هر خط به شکل: شکل غلط = شکل درست" FontSize="12" Foreground="#666" />
+        <TextBox x:Name="CustomWordsBox" AcceptsReturn="True" TextWrapping="Wrap"
+                 Height="90" FlowDirection="RightToLeft" />
+      </StackPanel>
+    </ScrollViewer>
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+      <Button x:Name="SaveButton" Content="ذخیره" Classes="accent" MinWidth="90" />
+      <Button x:Name="CloseButton" Content="بستن به سینی" MinWidth="100" />
+      <Button x:Name="ExitButton" Content="خروج" MinWidth="80" />
+    </StackPanel>
+  </Grid>
+</Window>

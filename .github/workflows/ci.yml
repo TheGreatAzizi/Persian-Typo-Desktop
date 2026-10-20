@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore dotnet/PersianTypoFixer.sln
+
+      - name: Build
+        run: dotnet build dotnet/PersianTypoFixer.sln -c Release --no-restore
+
+      - name: Fixer parity (17,450 checks)
+        run: dotnet run --project dotnet/tests/ParityRunner/ParityRunner.csproj -c Release --no-build -- "${{ github.workspace }}"
+
+      - name: Publish Linux AppImage input
+        run: dotnet publish dotnet/src/PersianTypoFixer.App/PersianTypoFixer.App.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist/linux

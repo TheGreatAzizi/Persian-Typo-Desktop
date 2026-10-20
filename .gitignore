@@ -28,3 +28,13 @@ tools/js_results*.json
 tools/py_results*.json
 tools/fuzz*_js.json
 tools/fuzz_js_results.json
+# C# build output
+dotnet/**/bin/
+dotnet/**/obj/
+
+# Parity fixtures (needed by dotnet/tests/ParityRunner)
+!tools/py_results.json
+!tools/py_results2.json
+!tools/fuzz_js_results.json
+!tools/fuzz2_js.json
+!tools/fuzz3_js.json
