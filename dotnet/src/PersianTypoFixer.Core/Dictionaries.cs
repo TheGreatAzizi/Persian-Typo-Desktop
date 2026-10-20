@@ -1,4 +1,4 @@
-// Auto-generated from core/fixer.py dictionaries. Do not edit by hand.
+// Dictionary data ported from the Persian Typo Fixer browser extension.
 using System.Collections.Generic;
 
 namespace PersianTypoFixer.Core;

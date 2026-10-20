@@ -23,7 +23,7 @@ if (args.Length >= 2 && args[0] == "--debug")
 }
 
 var root = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
-var tools = Path.Combine(root, "tools");
+var fixtures = Path.Combine(root, "dotnet", "tests", "ParityRunner", "Fixtures");
 var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
 int total = 0;
@@ -58,7 +58,7 @@ T Load<T>(string path) =>
     JsonSerializer.Deserialize<T>(File.ReadAllText(path, Encoding.UTF8), jsonOptions);
 
 // 1) corpus (default options)
-var py = Load<PyResults>(Path.Combine(tools, "py_results.json"));
+var py = Load<PyResults>(Path.Combine(fixtures, "py_results.json"));
 var def = new FixOptions();
 foreach (var c in py.Texts)
     Check("corpus", c.In, c.Out, Fixer.FixText(c.In, def));
@@ -77,8 +77,8 @@ foreach (var c in py.Typing)
 }
 
 // 2) corpus2 (option sets)
-var corpus2 = Load<Corpus2>(Path.Combine(tools, "corpus2.json"));
-var py2 = Load<List<OptCase>>(Path.Combine(tools, "py_results2.json"));
+var corpus2 = Load<Corpus2>(Path.Combine(fixtures, "corpus2.json"));
+var py2 = Load<List<OptCase>>(Path.Combine(fixtures, "py_results2.json"));
 foreach (var c in py2)
 {
     var opts = c.OptIndex >= 0 && c.OptIndex < corpus2.Options.Count
@@ -88,12 +88,12 @@ foreach (var c in py2)
 }
 
 // 3) fuzz1
-var f1 = Load<Fuzz1>(Path.Combine(tools, "fuzz_js_results.json"));
+var f1 = Load<Fuzz1>(Path.Combine(fixtures, "fuzz_js_results.json"));
 for (var i = 0; i < f1.Cases.Count; i++)
     Check("fuzz1", f1.Cases[i], f1.Results[i], Fixer.FixText(f1.Cases[i], def));
 
 // 4) fuzz2 (text + typing)
-var f2 = Load<Fuzz2>(Path.Combine(tools, "fuzz2_js.json"));
+var f2 = Load<Fuzz2>(Path.Combine(fixtures, "fuzz2_js.json"));
 for (var i = 0; i < f2.TextCases.Count; i++)
     Check("fuzz2-text", f2.TextCases[i], f2.TextResults[i], Fixer.FixText(f2.TextCases[i], def));
 for (var i = 0; i < f2.TypingCases.Count; i++)
@@ -110,7 +110,7 @@ for (var i = 0; i < f2.TypingCases.Count; i++)
 }
 
 // 5) fuzz3 (random option sets)
-var f3 = Load<Fuzz3>(Path.Combine(tools, "fuzz3_js.json"));
+var f3 = Load<Fuzz3>(Path.Combine(fixtures, "fuzz3_js.json"));
 for (var i = 0; i < f3.Cases.Count; i++)
     Check("fuzz3", f3.Cases[i].Value, f3.Results[i], Fixer.FixText(f3.Cases[i].Value, f3.Cases[i].Opts));
 

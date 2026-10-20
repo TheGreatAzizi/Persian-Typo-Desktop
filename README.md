@@ -83,8 +83,7 @@ git push origin v2.0.0
 
 - `dotnet/src/PersianTypoFixer.Core` — منطق اصلاح متن، دیکشنری‌ها، هوک کیبورد/ماوس، میانبر و کلیپ‌بورد ویندوز و لینوکس
 - `dotnet/src/PersianTypoFixer.App` — رابط Avalonia، سینی سیستم، پنجرهٔ تنظیمات
-- `dotnet/tests/ParityRunner` — تست هم‌ارزی با پیاده‌سازی مرجع
-- `core/`، `main.py` و `tools/` — پیاده‌سازی و ابزارهای مرجع پایتون (برای مقایسه و تولید دیکشنری‌ها)
+- `dotnet/tests/ParityRunner` — تست هم‌ارزی و فایل‌های نمونهٔ مرجع (`Fixtures/`)
 
 ## لایسنس
 
