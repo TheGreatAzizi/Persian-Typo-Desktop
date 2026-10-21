@@ -6,7 +6,7 @@ APP_ID="com.thegreatazizi.persiantypofixer"
 APP_BIN="PersianTypoFixer"
 VERSION="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' \
   dotnet/src/PersianTypoFixer.App/PersianTypoFixer.App.csproj | head -n1)"
-VERSION="${VERSION:-2.1.2}"
+VERSION="${VERSION:-2.3.0}"
 APP_DIR="AppDir"
 USR="$APP_DIR/usr"
 BIN="$USR/bin"
@@ -31,21 +31,11 @@ cp assets/icon.png "$ICON/$APP_ID.png"
 cp assets/icon.png "$APP_DIR/$APP_ID.png"
 cp assets/icon.png "$APP_DIR/.DirIcon"
 
-cat > "$DESKTOP/$APP_ID.desktop" <<EOF
-[Desktop Entry]
-Name=Persian Typo Fixer
-Name[fa]=اصلاح‌گر تایپ فارسی
-GenericName=Persian Typo Fixer
-Comment=Fix Persian text in any application
-Comment[fa]=اصلاح خودکار متن فارسی در همه برنامه‌ها
-Exec=AppRun %F
-Icon=$APP_ID
-Terminal=false
-Type=Application
-Categories=Office;Utility;
-StartupNotify=true
-EOF
+mkdir -p "$SHARE/metainfo"
+cp "linux/$APP_ID.desktop" "$DESKTOP/$APP_ID.desktop"
+sed -i -e 's|^Exec=.*|Exec=AppRun|' -e '/^TryExec=/d' "$DESKTOP/$APP_ID.desktop"
 cp "$DESKTOP/$APP_ID.desktop" "$APP_DIR/$APP_ID.desktop"
+cp "linux/$APP_ID.appdata.xml" "$SHARE/metainfo/$APP_ID.appdata.xml"
 
 # ۳) فایل AppRun برای اجرای AppImage
 cat > "$APP_DIR/AppRun" <<'EOF'

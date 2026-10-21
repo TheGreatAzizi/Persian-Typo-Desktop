@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=Persian Typo Fixer
+Name[fa]=اصلاح‌گر تایپ فارسی
+GenericName=Persian Typo Fixer
+GenericName[fa]=اصلاح غلط تایپی فارسی
+Comment=Fix common Persian typing mistakes in any application
+Comment[fa]=اصلاح خودکار غلط‌های رایج تایپ فارسی در همهٔ برنامه‌ها
+Exec=persian-typo-fixer
+TryExec=persian-typo-fixer
+Icon=com.thegreatazizi.persiantypofixer
+Terminal=false
+Categories=Utility;
+Keywords=Persian;typo;spelling;keyboard;
+Keywords[fa]=فارسی;غلط;تایپ;کیبورد;
+StartupNotify=true

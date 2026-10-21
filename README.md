@@ -111,7 +111,7 @@ Persian Typo Fixer این کار را به یک عادت ساده تبدیل م�
 
 ## دانلود و نصب
 
-آخرین نسخه: **2.2.0** — [تاریخچهٔ نسخه‌ها](https://github.com/TheGreatAzizi/Persian-Typo-Desktop/releases)
+آخرین نسخه: **2.3.0** — [تاریخچهٔ نسخه‌ها](https://github.com/TheGreatAzizi/Persian-Typo-Desktop/releases)
 
 ### ویندوز 10/11 (64-bit)
 
@@ -123,14 +123,20 @@ Persian Typo Fixer این کار را به یک عادت ساده تبدیل م�
 
 ### لینوکس (x86_64)
 
-فایل `Persian.Typo.Fixer-*-x86_64.AppImage` را از [صفحهٔ ریلیزها](https://github.com/TheGreatAzizi/Persian-Typo-Desktop/releases/latest) دانلود کنید:
+بستهٔ مناسب توزیع خود را از [صفحهٔ ریلیزها](https://github.com/TheGreatAzizi/Persian-Typo-Desktop/releases/latest) دانلود کنید:
 
-```bash
-chmod +x Persian.Typo.Fixer-*-x86_64.AppImage
-./Persian.Typo.Fixer-*-x86_64.AppImage
-```
+| توزیع | فایل | نصب |
+|---|---|---|
+| اوبونتو ۲۲.۰۴+، دبیان ۱۲+، مینت ۲۱+، پاپ!_OS، زورین، کالی | `persian-typo-fixer_*_amd64.deb` | دوبار کلیک یا `sudo apt install ./persian-typo-fixer_*_amd64.deb` |
+| فدورا و توزیع‌های جدید RPM (glibc 2.35+) | `persian-typo-fixer-*.x86_64.rpm` | دوبار کلیک یا `sudo dnf install ./persian-typo-fixer-*.x86_64.rpm` |
+| آرچ، مانجارو، EndeavourOS | `persian-typo-fixer-*-x86_64.pkg.tar.zst` | `sudo pacman -U ./persian-typo-fixer-*-x86_64.pkg.tar.zst` |
+| توزیع دیگر یا انتخاب مطمئن | `Persian.Typo.Fixer-*-x86_64.AppImage` | `chmod +x Persian.Typo.Fixer-*.AppImage` و بعد `./Persian.Typo.Fixer-*.AppImage` |
+| پرتابل بدون نصب | `Persian.Typo.Fixer-*-linux-x86_64.tar.gz` | استخراج و اجرای `./PersianTypoFixer` |
 
-اگر AppImage اجرا نشد، `libfuse2` را نصب کنید یا برنامه را با `--appimage-extract-and-run` اجرا کنید.
+- برای openSUSE Tumbleweed از دوبار کلیک روی فایل RPM یا `sudo zypper install ./persian-typo-fixer-*.x86_64.rpm` استفاده کنید.
+- اگر AppImage اجرا نشد، `libfuse2` را نصب کنید یا برنامه را با `./Persian.Typo.Fixer-*.AppImage --appimage-extract-and-run` اجرا کنید.
+- اگر توزیع خود را نمی‌شناسید، در ترمینال `cat /etc/os-release` را اجرا کنید؛ اگر باز هم مطمئن نبودید، AppImage را انتخاب کنید.
+- همهٔ بسته‌های لینوکس برای معماری **x86_64** و glibc **2.35+** هستند.
 
 #### اصلاح خودکار هنگام تایپ در لینوکس
 
@@ -247,6 +253,10 @@ chmod +x Persian.Typo.Fixer-*-x86_64.AppImage
 
 در تنظیمات، بخش «کلمات سفارشی»، هر خط را به شکل `غلط = درست` بنویسید و ذخیره کنید.
 
+**کدام فایل لینوکس را دانلود کنم؟**
+
+اگر اوبونتو ۲۲.۰۴+، دبیان ۱۲+ یا مینت ۲۱+ دارید، فایل `.deb`؛ برای فدورا و توزیع‌های RPM، فایل `.rpm`؛ و برای آرچ/مانجارو فایل `.pkg.tar.zst` را بردارید. اگر توزیعتان در این فهرست نیست یا مطمئن نیستید، AppImage را دانلود کنید. جدول کامل در بخش [دانلود و نصب](#دانلود-و-نصب) آمده است.
+
 **برای مرورگر چه چیزی نصب کنم؟**
 
 اگر بیشتر تایپ فارسی شما در مرورگر است، نسخهٔ دسکتاپ لازم نیست؛ [افزونهٔ Persian Typo Fixer](https://github.com/TheGreatAzizi/Persian-Typo-Fixer) را برای Chrome یا Firefox نصب کنید. افزونه سبک‌تر است و همان قواعد را داخل فیلدهای وب اعمال می‌کند.
@@ -296,6 +306,14 @@ chmod +x build_appimage.sh
 
 خروجی: `dist/Persian.Typo.Fixer-<version>-x86_64.AppImage`
 
+برای ساخت بسته‌های نصب دبیان/اوبونتو، RPM، آرچ و نسخهٔ پرتابل، پس از publish باینری لینوکس:
+
+```bash
+bash linux/build-packages.sh
+```
+
+این اسکریپت به [`nfpm`](https://nfpm.goreleaser.com) نیاز دارد و خروجی‌ها را در `dist/packages` می‌سازد.
+
 ## تست‌ها
 
 منطق اصلاح متن و هشدارهای معنایی با **۱۷٬۴۶۱ بررسی هم‌ارزی** در برابر نسخهٔ مرجع آزموده می‌شود:
@@ -309,6 +327,7 @@ dotnet run --project dotnet/tests/ParityRunner/ParityRunner.csproj -c Release --
 - `dotnet/src/PersianTypoFixer.Core` — موتور اصلاح، دیکشنری‌ها، هشدارهای معنایی، هوک‌ها، میانبر و کلیپ‌بورد
 - `dotnet/src/PersianTypoFixer.App` — رابط Avalonia، سینی سیستم، پنجرهٔ تنظیمات و نوتیف
 - `dotnet/tests/ParityRunner` — تست هم‌ارزی و فایل‌های نمونهٔ مرجع
+- `linux/` — فایل دسکتاپ، AppStream و اسکریپت ساخت بسته‌های نصب لینوکس
 - `assets/` — آیکون و دارایی‌های تصویری
 - `docs/screenshots/` — تصاویر مستندات
 

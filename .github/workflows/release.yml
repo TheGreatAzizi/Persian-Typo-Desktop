@@ -32,20 +32,15 @@ jobs:
             -o dist/win
           Move-Item dist/win/PersianTypoFixer.exe dist/win/Persian.Typo.Fixer.exe
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          files: dist/win/Persian.Typo.Fixer.exe
+          name: windows
+          path: dist/win/Persian.Typo.Fixer.exe
+          if-no-files-found: error
 
   build-linux:
-    runs-on: ubuntu-latest
-    needs: build-windows
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -54,10 +49,10 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Install system dependencies
+      - name: Install packaging dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfuse2 wget file
+          sudo apt-get install -y libfuse2 wget file zstd rpm desktop-file-utils
 
       - name: Restore
         run: dotnet restore dotnet/PersianTypoFixer.sln
@@ -71,33 +66,24 @@ jobs:
             -o dist/linux
           chmod +x dist/linux/PersianTypoFixer
 
-      - name: Download appimagetool
+      - name: Build AppImage
         run: |
-          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool \
-            || wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+          wget -q --tries=5 --timeout=30 "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool \
+            || wget -q --tries=5 --timeout=30 "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
           chmod +x appimagetool
+          wget -q --tries=5 --timeout=30 "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64" -O runtime-x86_64 \
+            || rm -f runtime-x86_64
 
-      - name: Build AppDir
-        run: |
           rm -rf AppDir
-          mkdir -p AppDir/usr/bin AppDir/usr/share/icons/hicolor/256x256/apps AppDir/usr/share/applications
+          mkdir -p AppDir/usr/bin AppDir/usr/share/icons/hicolor/256x256/apps AppDir/usr/share/applications AppDir/usr/share/metainfo dist/packages
           cp dist/linux/PersianTypoFixer AppDir/usr/bin/PersianTypoFixer
           cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/com.thegreatazizi.persiantypofixer.png
           cp assets/icon.png AppDir/com.thegreatazizi.persiantypofixer.png
           cp assets/icon.png AppDir/.DirIcon
-          printf '%s\n' \
-            '[Desktop Entry]' \
-            'Name=Persian Typo Fixer' \
-            'Name[fa]=اصلاح‌گر تایپ فارسی' \
-            'Comment=Fix Persian text in any application' \
-            'Comment[fa]=اصلاح خودکار متن فارسی در همه برنامه‌ها' \
-            'Exec=AppRun %F' \
-            'Icon=com.thegreatazizi.persiantypofixer' \
-            'Terminal=false' \
-            'Type=Application' \
-            'Categories=Office;Utility;' \
-            > AppDir/com.thegreatazizi.persiantypofixer.desktop
+          cp linux/com.thegreatazizi.persiantypofixer.desktop AppDir/com.thegreatazizi.persiantypofixer.desktop
+          sed -i -e 's|^Exec=.*|Exec=AppRun|' -e '/^TryExec=/d' AppDir/com.thegreatazizi.persiantypofixer.desktop
           cp AppDir/com.thegreatazizi.persiantypofixer.desktop AppDir/usr/share/applications/com.thegreatazizi.persiantypofixer.desktop
+          cp linux/com.thegreatazizi.persiantypofixer.appdata.xml AppDir/usr/share/metainfo/com.thegreatazizi.persiantypofixer.appdata.xml
           cat > AppDir/AppRun <<'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
@@ -107,15 +93,80 @@ jobs:
           EOF
           chmod +x AppDir/AppRun
 
-      - name: Build AppImage
-        run: |
-          ARCH=x86_64 ./appimagetool AppDir "Persian.Typo.Fixer-${GITHUB_REF_NAME#v}-x86_64.AppImage" \
-            || ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir "Persian.Typo.Fixer-${GITHUB_REF_NAME#v}-x86_64.AppImage"
+          VERSION="${GITHUB_REF_NAME#v}"
+          OUT="dist/packages/Persian.Typo.Fixer-${VERSION}-x86_64.AppImage"
+          if [ -s runtime-x86_64 ]; then
+            ARCH=x86_64 ./appimagetool --runtime-file runtime-x86_64 AppDir "$OUT" \
+              || ARCH=x86_64 ./appimagetool --appimage-extract-and-run --runtime-file runtime-x86_64 AppDir "$OUT"
+          else
+            ARCH=x86_64 ./appimagetool AppDir "$OUT" \
+              || ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir "$OUT"
+          fi
 
-      - name: Upload AppImage to Release
+      - name: Install nfpm
+        run: |
+          NFPM_VERSION=2.48.0
+          curl -fsSL --retry 5 -o /tmp/nfpm.tar.gz \
+            "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz"
+          tar -xzf /tmp/nfpm.tar.gz -C /tmp nfpm
+          sudo install -m 0755 /tmp/nfpm /usr/local/bin/nfpm
+          nfpm --version
+
+      - name: Build native Linux packages
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}" bash linux/build-packages.sh
+
+      - name: Validate packages
+        run: |
+          desktop-file-validate linux/com.thegreatazizi.persiantypofixer.desktop
+          for f in dist/packages/*.deb; do
+            dpkg-deb --info "$f"
+            dpkg-deb --contents "$f" | grep -q 'usr/bin/persian-typo-fixer'
+          done
+          for f in dist/packages/*.rpm; do
+            rpm -qip "$f"
+            rpm -qlp "$f" | grep -q '/usr/bin/persian-typo-fixer'
+          done
+          for f in dist/packages/*.pkg.tar.zst; do
+            tar --zstd -tf "$f" | grep -q '.PKGINFO'
+          done
+          tar -tzf dist/packages/*.tar.gz | grep -q 'PersianTypoFixer'
+          ls -lh dist/packages
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: dist/packages/*
+          if-no-files-found: error
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd release-assets
+          sha256sum Persian* persian* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
-          files: "Persian.Typo.Fixer-*-x86_64.AppImage"
+          name: Persian Typo Fixer ${{ github.ref_name }}
+          body_path: .github/release-notes.md
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          files: release-assets/*

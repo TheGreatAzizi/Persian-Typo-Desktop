@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.thegreatazizi.persiantypofixer</id>
+  <name>Persian Typo Fixer</name>
+  <name xml:lang="fa">اصلاح‌گر تایپ فارسی</name>
+  <summary>Fix common Persian typing mistakes in any application</summary>
+  <summary xml:lang="fa">اصلاح خودکار غلط‌های رایج تایپ فارسی در همهٔ برنامه‌ها</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>Persian Typo Fixer is an offline desktop utility that corrects common Persian typing mistakes while you type.</p>
+    <ul>
+      <li>Arabic/Persian Yeh and Kaf correction</li>
+      <li>ZWNJ (half-space) and spacing fixes</li>
+      <li>Common compound words, digits and punctuation</li>
+      <li>Non-destructive warnings for ambiguous words</li>
+      <li>Custom dictionary and rule settings</li>
+    </ul>
+    <p>All text processing happens locally. No account, telemetry or cloud service is used.</p>
+  </description>
+  <launchable type="desktop-id">com.thegreatazizi.persiantypofixer.desktop</launchable>
+  <url type="homepage">https://github.com/TheGreatAzizi/Persian-Typo-Desktop</url>
+  <url type="bugtracker">https://github.com/TheGreatAzizi/Persian-Typo-Desktop/issues</url>
+  <url type="vcs-browser">https://github.com/TheGreatAzizi/Persian-Typo-Desktop</url>
+  <developer id="com.thegreatazizi">
+    <name>TheGreatAzizi</name>
+  </developer>
+  <releases>
+    <release version="2.3.0" date="2026-10-21"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>
