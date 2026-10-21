@@ -59,6 +59,8 @@ public sealed class AppController
         if (save)
             _config.Save();
 
+        var autoFixError = EnsureAutoFixer();
+
         if (OperatingSystem.IsWindows())
         {
             _hotkey?.Dispose();
@@ -82,19 +84,8 @@ public sealed class AppController
                 SetStatus("خطا در ثبت میانبر: " + ex.Message);
             }
 
-            if (_autoFixer == null)
-            {
-                _autoFixer = new AutoFixer(() => _config, _input);
-                _autoFixer.NoticeDetected += ShowNotice;
-                try
-                {
-                    _autoFixer.Start();
-                }
-                catch (Exception ex)
-                {
-                    SetStatus("خطا در راه‌اندازی اصلاح خودکار: " + ex.Message);
-                }
-            }
+            if (autoFixError != null)
+                SetStatus(string.IsNullOrEmpty(Status) ? autoFixError : Status + " | " + autoFixError);
         }
         else if (OperatingSystem.IsLinux())
         {
@@ -113,7 +104,7 @@ public sealed class AppController
                     if (hotkey.IsRegistered)
                     {
                         _linuxHotkey = hotkey;
-                        SetStatus($"آماده — میانبر: {_config.Hotkey} (اصلاح خودکار هنگام تایپ فقط در ویندوز)");
+                        SetStatus($"آماده — میانبر: {_config.Hotkey}");
                     }
                     else
                     {
@@ -128,6 +119,10 @@ public sealed class AppController
             }
             if (_input is LinuxInput linux && !linux.IsAvailable)
                 SetStatus(Status + " | ابزار کلیپ‌بورد نصب نیست (wl-clipboard برای Wayland، xclip/xsel برای X11).");
+            if (_autoFixer != null && _config.AutoFix)
+                SetStatus(Status + " | اصلاح خودکار فعال است.");
+            else if (autoFixError != null)
+                SetStatus(string.IsNullOrEmpty(Status) ? autoFixError : Status + " | " + autoFixError);
         }
 
         if (_enabledItem != null)
@@ -414,6 +409,45 @@ public sealed class AppController
     {
         Status = status;
         StatusChanged?.Invoke(status);
+    }
+
+    private string? EnsureAutoFixer()
+    {
+        var waylandWithoutInjector = _input is LinuxInput { IsWayland: true, CanAutoPaste: false };
+        if (_autoFixer != null)
+        {
+            return waylandWithoutInjector && _config.AutoFix
+                ? "برای اصلاح خودکار در Wayland، ydotool را نصب کنید و ydotoold را اجرا کنید."
+                : null;
+        }
+
+        if (waylandWithoutInjector && _config.AutoFix)
+            return "برای اصلاح خودکار در Wayland، ydotool را نصب کنید و ydotoold را اجرا کنید.";
+        if (OperatingSystem.IsLinux() && !_config.AutoFix && !_config.Notices)
+        {
+            _autoFixer?.Dispose();
+            _autoFixer = null;
+            return null;
+        }
+
+        var fixer = new AutoFixer(() => _config, _input);
+        fixer.NoticeDetected += ShowNotice;
+        try
+        {
+            fixer.Start();
+            _autoFixer = fixer;
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            fixer.Dispose();
+            return "دسترسی به /dev/input ممکن نیست؛ کاربر را به گروه input اضافه کنید و دوباره وارد شوید.";
+        }
+        catch (Exception ex)
+        {
+            fixer.Dispose();
+            return "خطا در راه‌اندازی اصلاح خودکار: " + ex.Message;
+        }
     }
 
     private string DefaultStatus()

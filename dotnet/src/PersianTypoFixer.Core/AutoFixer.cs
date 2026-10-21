@@ -48,11 +48,26 @@ public sealed class AutoFixer : IDisposable
             _mouse = new Platform.WindowsMouseHook(() => Reset());
             ((Platform.WindowsMouseHook)_mouse).Start();
         }
+        else if (OperatingSystem.IsLinux())
+        {
+            _keyboard = new Platform.LinuxKeyboardHook(OnPress, OnRelease, () => _injecting, Reset);
+        }
         else
         {
             return;
         }
-        _keyboard.Start();
+
+        try
+        {
+            _keyboard.Start();
+        }
+        catch
+        {
+            _keyboard = null;
+            _mouse?.Dispose();
+            _mouse = null;
+            throw;
+        }
     }
 
     public void Stop()

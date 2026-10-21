@@ -61,12 +61,16 @@ public sealed class LinuxInput : IInputBackend
             _clipboardSet = null;
             _selectionGet = null;
         }
-        _injector = Which("xdotool") != null ? "xdotool" : Which("ydotool") != null ? "ydotool" : null;
+        var xdotool = Which("xdotool");
+        var ydotool = Which("ydotool");
+        _injector = wayland
+            ? ydotool != null ? "ydotool" : xdotool != null ? "xdotool" : null
+            : xdotool != null ? "xdotool" : ydotool != null ? "ydotool" : null;
     }
 
     public bool IsWayland { get; }
 
-    public bool CanAutoPaste => !IsWayland;
+    public bool CanAutoPaste => !IsWayland || _injector == "ydotool";
 
     public bool IsAvailable => _clipboardGet != null && _clipboardSet != null;
 
@@ -95,6 +99,8 @@ public sealed class LinuxInput : IInputBackend
 
     public void PressBackspace(int count)
     {
+        if (IsWayland && TryYdotool(BackspaceSequence(count)))
+            return;
         if (!TrySend(dpy =>
             {
                 for (var i = 0; i < count; i++)
@@ -107,14 +113,31 @@ public sealed class LinuxInput : IInputBackend
 
     public void Paste()
     {
+        if (IsWayland && TryYdotool("29:1 47:1 47:0 29:0"))
+            return;
         if (!TrySend(dpy => Chord(dpy, "Control_L", "v")))
             InjectFallback("ctrl+v", 1);
     }
 
     public void Copy()
     {
+        if (IsWayland && TryYdotool("29:1 46:1 46:0 29:0"))
+            return;
         if (!TrySend(dpy => Chord(dpy, "Control_L", "c")))
             InjectFallback("ctrl+c", 1);
+    }
+
+    private static string BackspaceSequence(int count)
+    {
+        var builder = new StringBuilder();
+        for (var i = 0; i < count; i++)
+            builder.Append("14:1 14:0 ");
+        return builder.ToString().TrimEnd();
+    }
+
+    private bool TryYdotool(string sequence)
+    {
+        return _injector == "ydotool" && RunInject("ydotool key " + sequence);
     }
 
     private bool TrySend(Action<IntPtr> action)
@@ -196,6 +219,18 @@ public sealed class LinuxInput : IInputBackend
             };
             RunInject($"xdotool key --repeat {count} {key}");
         }
+        else if (_injector == "ydotool")
+        {
+            var sequence = keysym switch
+            {
+                "BackSpace" => BackspaceSequence(count),
+                "ctrl+v" => "29:1 47:1 47:0 29:0",
+                "ctrl+c" => "29:1 46:1 46:0 29:0",
+                _ => "",
+            };
+            if (sequence.Length > 0)
+                RunInject("ydotool key " + sequence);
+        }
     }
 
     private static string? Which(string name)
@@ -237,16 +272,17 @@ public sealed class LinuxInput : IInputBackend
         Thread.Sleep(30);
     }
 
-    private static void RunInject(string command)
+    private static bool RunInject(string command)
     {
         var info = ShellInfo(command);
         info.RedirectStandardOutput = true;
         info.RedirectStandardError = true;
         using var process = Process.Start(info);
         if (process == null)
-            return;
+            return false;
         process.StandardOutput.ReadToEnd();
         process.WaitForExit(2000);
+        return process.HasExited && process.ExitCode == 0;
     }
 
     private static ProcessStartInfo ShellInfo(string command)

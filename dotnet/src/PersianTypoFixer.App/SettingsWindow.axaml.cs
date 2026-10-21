@@ -115,10 +115,10 @@ public partial class SettingsWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Right,
             };
             var hintText = hint;
-            if (propertyName == nameof(FixOptions.AutoFix) && !OperatingSystem.IsWindows())
+            if (propertyName == nameof(FixOptions.AutoFix) &&
+                !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")))
             {
-                toggle.IsEnabled = false;
-                hintText += " (فعلاً فقط در ویندوز)";
+                hintText += " در Wayland به ydotool و دسترسی /dev/input نیاز دارد.";
             }
             _checks.Add((toggle, property));
             panel.Children.Add(BuildRow(label, hintText, toggle));
